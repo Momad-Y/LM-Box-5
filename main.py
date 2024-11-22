@@ -1,6 +1,10 @@
 import pygame
 import pygame_menu
 from pygame_menu.themes import Theme
+from pygame.locals import *
+from pygame import mixer
+import PIL
+
 from screeninfo import get_monitors
 
 
@@ -13,6 +17,9 @@ class Game:
 
         # Start Pygame
         pygame.init()
+
+        # Initialize the mixer for sound
+        mixer.init()
 
         # Get the user's screen resolution
         user_screen = get_monitors()[self.user_screen_number]
@@ -37,6 +44,15 @@ class Game:
             self.screen.get_width() / 2, self.screen.get_height() / 2
         )
 
+        # Initialize a boolean for whether the game is running
+        self.game_running = False
+
+        # Initialize a boolean for whether the main menu is running
+        self.main_menu_running = False
+
+        # Initialize a boolean for whether the background music is muted
+        self.bg_music_muted = False
+
         # Initialize the themes and main menu
         self.init_theme()
         self.init_main_menu()
@@ -45,6 +61,7 @@ class Game:
         self.start_main_menu()
 
     def init_theme(self):
+        # Set the background image
         self.bg_image = pygame_menu.baseimage.BaseImage(
             image_path="./resources/images/main_menu_bg.png",
             drawing_mode=pygame_menu.baseimage.IMAGE_MODE_FILL,
@@ -71,6 +88,10 @@ class Game:
             theme=self.theme,
         )
 
+        # Set the background music
+        mixer.music.load("./resources/sounds/main_menu_bg_music.ogg")
+        mixer.music.set_volume(0.1)
+
         # Add the game title to the main menu
         self.main_menu.add.label(
             self.game_name,
@@ -82,13 +103,29 @@ class Game:
         )
 
         # Add vertical space to the main menu
-        self.main_menu.add.vertical_margin(50)
+        self.main_menu.add.vertical_margin(230)
+
+        # Add the "Settings" button to the main menu
+        self.main_menu.add.button(
+            "Settings",
+            self.start_game,
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
 
         # Add the "Play Balloons" button to the main menu
         self.main_menu.add.button(
             "Play Balloons",
             self.start_game,
-            margin=(0, 0),
+            align=pygame_menu.locals.ALIGN_LEFT,
+            margin=(100, 0),
             padding=(0, 0),
             background_color=(0, 0, 0),
             selection_effect=pygame_menu.widgets.LeftArrowSelection(
@@ -98,14 +135,27 @@ class Game:
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
 
-        # Add vertical space to the main menu
-        self.main_menu.add.vertical_margin(50)
+        # Add the "Credits" button to the main menu
+        self.main_menu.add.button(
+            "Credits",
+            self.start_game,
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
 
         # Add the "Play Pong" button to the main menu
         self.main_menu.add.button(
             "Play Pong",
             self.start_game,
-            margin=(0, 0),
+            align=pygame_menu.locals.ALIGN_LEFT,
+            margin=(100, 0),
             padding=(0, 0),
             background_color=(0, 0, 0),
             selection_effect=pygame_menu.widgets.LeftArrowSelection(
@@ -115,14 +165,27 @@ class Game:
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
 
-        # Add vertical space to the main menu
-        self.main_menu.add.vertical_margin(50)
+        # Add the "Toggle Music" button to the main menu
+        self.main_menu.add.button(
+            "Toggle Music",
+            self.toggle_bg_music,
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
 
-        # Add the "Play Snake" button to the main menu
+        # Add the "Play Runner" button to the main menu
         self.main_menu.add.button(
             "Play Runner",
             self.start_game,
-            margin=(0, 0),
+            align=pygame_menu.locals.ALIGN_LEFT,
+            margin=(100, 0),
             padding=(0, 0),
             background_color=(0, 0, 0),
             selection_effect=pygame_menu.widgets.LeftArrowSelection(
@@ -131,15 +194,13 @@ class Game:
             ),
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
-
-        # Add vertical space to the main menu
-        self.main_menu.add.vertical_margin(100)
 
         # Add the "Quit" button to the main menu
         self.main_menu.add.button(
             "Quit",
             pygame_menu.events.EXIT,
-            margin=(0, 0),
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
             padding=(0, 0),
             background_color=(0, 0, 0),
             selection_effect=pygame_menu.widgets.LeftArrowSelection(
@@ -150,10 +211,38 @@ class Game:
         )
 
     def start_main_menu(self):
+        # Play the background music
+        if not self.bg_music_muted:
+            mixer.music.play()
+
+        self.main_menu_running = True
+        self.game_running = False
+
         # Set the main menu as the main menu of the game
         self.main_menu.mainloop(self.screen)
 
+    def toggle_bg_music(self):
+        # Mute or unmute the background music
+        if self.bg_music_muted:
+            self.unmute_bg_music()
+            self.bg_music_muted = False
+        else:
+            self.mute_bg_music()
+            self.bg_music_muted = True
+
+    def mute_bg_music(self):
+        # Mute the background music
+        mixer.music.set_volume(0)
+
+    def unmute_bg_music(self):
+        # Unmute the background music
+        mixer.music.set_volume(0.1)
+
     def start_game(self):
+
+        self.main_menu_running = False
+        self.game_running = True
+
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
