@@ -435,12 +435,18 @@ class Game:
                 apperance_time = biased_random_int(
                     0, self.max_wave_time, (0, self.max_wave_time // 2), 10
                 )
+                balloon_type = (
+                    0 if not is_combo else int(balloon_img_path.split(".")[1][-1])
+                )
+
                 balloons.append(
                     {
                         "rect": balloon_rect,
                         "image": balloon_img,
                         "speed": speed,
                         "time": apperance_time,
+                        "is_combo": is_combo,
+                        "type": balloon_type,
                     }
                 )
             self.waves_balloons.append(balloons)
@@ -493,20 +499,117 @@ class Game:
             )
 
             time_elapsed = int(time.time() - start_time)
-            time_remaining = self.wave_wait_time - time_elapsed
+            other_time_remaining = self.wave_wait_time - time_elapsed
+            wave_1_time_remaining = 10 - time_elapsed
+
+            time_remaining = (
+                other_time_remaining
+                if self.balloons_wave != 1
+                else wave_1_time_remaining
+            )
 
             # Add the timer to the center of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 50)
+            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 40)
             text = font.render(
                 f"Wave {self.balloons_wave} starts in {time_remaining} seconds",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
             )
-            text_rect = text.get_rect(
-                center=(self.screen.get_width() // 2, self.screen.get_height() // 2)
-            )
+            if self.balloons_wave == 1:
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2 - 200,
+                    )
+                )
+            else:
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2,
+                    )
+                )
             self.screen.blit(text, text_rect)
+
+            # Add the game name to the top center of the screen
+            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 50)
+            text = font.render("Balloons Game", True, (255, 255, 255), (0, 0, 0))
+            text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
+            self.screen.blit(text, text_rect)
+
+            # Show instructions if the wave is 1
+            if self.balloons_wave == 1:
+                font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 30)
+                text = font.render(
+                    "Pop the balloons with your fingers",
+                    True,
+                    (255, 255, 255),
+                    (0, 0, 0),
+                )
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2,
+                    )
+                )
+                self.screen.blit(text, text_rect)
+
+                text = font.render(
+                    "Single balloons give 1 point",
+                    True,
+                    (255, 255, 255),
+                    (0, 0, 0),
+                )
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2 + 50,
+                    )
+                )
+                self.screen.blit(text, text_rect)
+
+                text = font.render(
+                    "Combo balloons give points based on the number of the balloons",
+                    True,
+                    (255, 255, 255),
+                    (0, 0, 0),
+                )
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2 + 100,
+                    )
+                )
+                self.screen.blit(text, text_rect)
+
+                text = font.render(
+                    "If you miss a normal balloon you lose a point",
+                    True,
+                    (255, 255, 255),
+                    (0, 0, 0),
+                )
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2 + 150,
+                    )
+                )
+                self.screen.blit(text, text_rect)
+
+                text = font.render(
+                    "Press ESC anytime to return to the main menu",
+                    True,
+                    (255, 255, 255),
+                    (0, 0, 0),
+                )
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2 + 200,
+                    )
+                )
+                self.screen.blit(text, text_rect)
 
             # Update the display
             pygame.display.flip()
@@ -649,7 +752,10 @@ class Game:
                 # Remove the balloon if it goes off the screen
                 if balloon["rect"].top <= self.start_y + 70:
                     balloons.remove(balloon)
-                    self.balloons_score -= 1
+
+                    # Remove a point if the balloon is not a combo balloon
+                    if not balloon["is_combo"]:
+                        self.balloons_score -= 1
 
             # Check if the balloons are all popped or the wave time is over
             if len(balloons) == 0 or elapsed_time >= self.max_wave_time:
