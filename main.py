@@ -10,7 +10,7 @@ import time
 
 from screeninfo import get_monitors
 
-from utils import img_with_rounded_corners
+from utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
 
 
 class Game:
@@ -273,9 +273,6 @@ class Game:
 
     def init_balloons_game(self):
 
-        # Stop the background music
-        mixer.music.stop()
-
         # Initialize the background image for the Balloons game
         self.balloons_game_bg_image = cv2.imread(
             "./resources/images/balloons_game_bg.png"
@@ -335,26 +332,26 @@ class Game:
         # Initialize the score
         self.balloons_score = 0
 
-        # Initialize the time
-        self.balloons_timer = 0
-
         # Initialize the wave
         self.balloons_wave = 1
 
-        # Initialize the timer
-        pygame.time.set_timer(1, 1000)
+        # Initialize the max number of waves
+        # !: This should be 5
+        self.max_balloons_waves = 2
 
-        # Initialize the game wait time
-        self.game_wait_time = 5
+        # Initialize the max wave time
+        # !: This should be 20
+        self.max_wave_time = 5
+
+        # Initialize the wave wait time
+        # !: This should be 3
+        self.wave_wait_time = 1
 
         # Initialize the balloons
         self.init_balloons()
 
         # Start the Balloons game timer
-        self.start_balloons_game_timer()
-
-        # Start the Balloons game
-        self.start_balloons_game()
+        self.start_balloons_game_wave_timer()
 
     def init_balloons(self):
         # Initialize the normal balloon image paths
@@ -375,31 +372,83 @@ class Game:
             "./resources/images/balloon-combo-3.png",
         ]
 
-        # Fill the balloons list with random balloons
-        for _ in range(10):
-            is_combo = random.choice(
-                [True, False, False, False, False, False, False, False, False, False]
-            )
+        # Initialize the balloons waves configurations
+        # Todo: Refactor this to be more fair
+        ballons_number_per_wave = [
+            [5, 15],
+            [15, 25],
+            [25, 35],
+            [35, 45],
+            [45, 55],
+        ]
 
-            balloon_img_path = (
-                random.choice(combo_balloon_image_paths)
-                if is_combo
-                else random.choice(normal_balloon_image_paths)
-            )
-            balloon_img = pygame.image.load(balloon_img_path)
-            balloon_img = pygame.transform.scale(balloon_img, (250, 250))
-            balloon_rect = pygame.Rect(
-                random.randint(self.start_x, self.end_x) + self.start_x,
-                random.randint(self.start_y, self.end_y) + self.start_y,
-                50,
-                50,
-            )
-            speed = random.randint(10, 20) if is_combo else random.randint(1, 10)
-            self.balloons.append(
-                {"rect": balloon_rect, "image": balloon_img, "speed": speed}
-            )
+        ballons_combo_probability_per_wave = [0.2, 0.15, 0.1, 0.05, 0.03]
 
-    def start_balloons_game_timer(self):
+        normal_ballons_speed_per_wave = [[2, 10], [4, 12], [6, 14], [8, 16], [10, 18]]
+
+        combo_ballons_speed_per_wave = [
+            [11, 15],
+            [13, 17],
+            [15, 19],
+            [17, 21],
+            [19, 23],
+        ]
+
+        self.waves_balloons = []
+
+        for wave_number in range(self.max_balloons_waves):
+            balloons = []
+            for _ in range(
+                random.randint(
+                    ballons_number_per_wave[wave_number][0],
+                    ballons_number_per_wave[wave_number][1],
+                )
+            ):
+                is_combo = random_bool_by_chance(
+                    ballons_combo_probability_per_wave[wave_number]
+                )
+
+                balloon_img_path = (
+                    random.choice(combo_balloon_image_paths)
+                    if is_combo
+                    else random.choice(normal_balloon_image_paths)
+                )
+                balloon_img = pygame.image.load(balloon_img_path)
+                balloon_img = pygame.transform.scale(balloon_img, (250, 250))
+                balloon_rect = pygame.Rect(
+                    random.randint(0, self.end_x) + self.start_x + 50,
+                    self.end_y + 50,
+                    50,
+                    50,
+                )
+                speed = (
+                    random.randint(
+                        combo_ballons_speed_per_wave[wave_number][0],
+                        combo_ballons_speed_per_wave[wave_number][1],
+                    )
+                    if is_combo
+                    else random.randint(
+                        normal_ballons_speed_per_wave[wave_number][0],
+                        normal_ballons_speed_per_wave[wave_number][1],
+                    )
+                )
+                apperance_time = biased_random_int(
+                    0, self.max_wave_time, (0, self.max_wave_time // 2), 10
+                )
+                balloons.append(
+                    {
+                        "rect": balloon_rect,
+                        "image": balloon_img,
+                        "speed": speed,
+                        "time": apperance_time,
+                    }
+                )
+            self.waves_balloons.append(balloons)
+
+    def start_balloons_game_wave_timer(self):
+
+        if self.balloons_wave > self.max_balloons_waves:
+            self.end_balloons_game()
 
         # Add a start timer for the game
         start_time = time.time()
@@ -444,12 +493,12 @@ class Game:
             )
 
             time_elapsed = int(time.time() - start_time)
-            time_remaining = self.game_wait_time - time_elapsed
+            time_remaining = self.wave_wait_time - time_elapsed
 
             # Add the timer to the center of the screen
             font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 50)
             text = font.render(
-                f"Game Starting in {time_remaining} seconds",
+                f"Wave {self.balloons_wave} starts in {time_remaining} seconds",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -467,7 +516,12 @@ class Game:
 
         time.sleep(1)
 
+        # Start the Balloons game
+        self.start_balloons_game()
+
     def start_balloons_game(self):
+
+        start_time = time.time()
 
         while True:
             for event in pygame.event.get():
@@ -475,16 +529,9 @@ class Game:
                     pygame.quit()
                     exit()
 
-                # if event.type == 1:
-                #     self.balloons_wave += 1
-                #     self.init_balloons()
-
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.start_main_menu()
-
-                if event.type == 1:
-                    self.balloons_timer += 1
 
             # Take a camera image
             _, self.camera_image = self.cap.read()
@@ -509,14 +556,17 @@ class Game:
                 self.camera_image, 30, 2, (0, 0, 0)
             )
 
+            # Initialize the edited background image
+            self.balloons_game_bg_image_edited = self.balloons_game_bg_image.copy()
+
             # Add the camera image to the background image
-            self.balloons_game_bg_image[
+            self.balloons_game_bg_image_edited[
                 self.start_y : self.end_y, self.start_x : self.end_x
             ] = self.camera_image
 
             # Convert the background image to a Pygame image
             self.balloons_game_bg_image_pygame = pygame.image.frombuffer(
-                self.balloons_game_bg_image.tobytes(),
+                self.balloons_game_bg_image_edited.tobytes(),
                 (
                     self.balloons_game_bg_image.shape[1],
                     self.balloons_game_bg_image.shape[0],
@@ -551,10 +601,13 @@ class Game:
             )
             self.screen.blit(text, (30, (self.screen.get_height() // 2 - 50)))
 
+            # Calculate the elapsed time
+            elapsed_time = int(time.time() - start_time)
+
             # Add time to the screen
             font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 36)
             text = font.render(
-                f"Time is {int(self.balloons_timer) - self.game_wait_time}",
+                f"Time is {elapsed_time}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -577,19 +630,140 @@ class Game:
             text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
             self.screen.blit(text, text_rect)
 
+            # Get the current wave balloons
+            balloons = self.waves_balloons[self.balloons_wave - 1]
+
+            # Sort the balloons by appearance time
+            balloons.sort(key=lambda x: x["time"])
+
             # Draw random balloons that move up the screen
-            for balloon in self.balloons:
+            for balloon in balloons:
+                # Skip the balloon if its appearance time has not come yet
+                if elapsed_time < balloon["time"]:
+                    continue
+
+                # Move the balloon up the screen and draw it
                 balloon["rect"].move_ip(0, -balloon["speed"])
                 self.screen.blit(balloon["image"], balloon["rect"])
-                if balloon["rect"].top <= self.start_y + 100:
-                    self.balloons.remove(balloon)
+
+                # Remove the balloon if it goes off the screen
+                if balloon["rect"].top <= self.start_y + 70:
+                    balloons.remove(balloon)
                     self.balloons_score -= 1
+
+            # Check if the balloons are all popped or the wave time is over
+            if len(balloons) == 0 or elapsed_time >= self.max_wave_time:
+                self.balloons_wave += 1
+                self.start_balloons_game_wave_timer()
+                break
 
             # Update the display
             pygame.display.flip()
 
             # Update the clock and delta time
             self.dt = self.clock.tick(30) / 1000
+
+    def end_balloons_game(self):
+
+        while True:
+            # Convert the background image to a Pygame image
+            self.balloons_game_bg_image_pygame = pygame.image.frombuffer(
+                self.balloons_game_bg_image.tobytes(),
+                (
+                    self.balloons_game_bg_image.shape[1],
+                    self.balloons_game_bg_image.shape[0],
+                ),
+                "RGBA",
+            )
+
+            # Resize the background image to fit the screen
+            self.balloons_game_bg_image_pygame = pygame.transform.scale(
+                self.balloons_game_bg_image_pygame,
+                (self.user_screen_width, self.user_screen_height),
+            )
+
+            # Draw the balloon game background image to the center of the screen
+            self.screen.blit(
+                self.balloons_game_bg_image_pygame,
+                (
+                    self.screen.get_width() / 2
+                    - self.balloons_game_bg_image_pygame.get_width() / 2,
+                    self.screen.get_height() / 2
+                    - self.balloons_game_bg_image_pygame.get_height() / 2,
+                ),
+            )
+
+            # Draw the balloon game background image to the center of the screen
+            self.screen.blit(
+                self.balloons_game_bg_image_pygame,
+                (
+                    self.screen.get_width() / 2
+                    - self.balloons_game_bg_image_pygame.get_width() / 2,
+                    self.screen.get_height() / 2
+                    - self.balloons_game_bg_image_pygame.get_height() / 2,
+                ),
+            )
+
+            # Add the game over text to the top of the screen
+            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 80)
+            text = font.render(
+                f"Game Over",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 - 50,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Add the score to the center of the screen
+            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 60)
+            text = font.render(
+                f"Score is {max(0, self.balloons_score)}",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 + 70,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Add "Press ESC to return to the main menu" to the center of the screen
+            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 30)
+            text = font.render(
+                f"Press ESC to return to the main menu",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() - 50,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Update the display
+            pygame.display.flip()
+
+            # If the user presses the escape key, return to the main menu
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
 
 
 if __name__ == "__main__":
