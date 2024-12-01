@@ -7,10 +7,13 @@ import cv2
 import numpy as np
 import random
 import time
+import os
 
 from screeninfo import get_monitors
 
 from utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
+
+CWD = os.path.dirname(os.path.abspath(__file__))
 
 
 class Game:
@@ -28,7 +31,7 @@ class Game:
         mixer.init()
 
         # Set the icon
-        icon = pygame.image.load("./resources/images/5-lmbox-icon.png")
+        icon = pygame.image.load(f"{CWD}/resources/images/5-lmbox-icon.png")
         pygame.display.set_icon(icon)
 
         # Get the user's screen resolution
@@ -96,7 +99,7 @@ class Game:
     def init_theme(self):
         # Set the background image
         self.menu_bg_image = pygame_menu.baseimage.BaseImage(
-            image_path="./resources/images/main_menu_bg.png",
+            image_path=f"{CWD}/resources/images/main_menu_bg.png",
             drawing_mode=pygame_menu.baseimage.IMAGE_MODE_FILL,
         )
 
@@ -122,7 +125,7 @@ class Game:
         )
 
         # Set the background music
-        mixer.music.load("./resources/sounds/main_menu_bg_music.ogg")
+        mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")
         mixer.music.set_volume(0.1)
 
         # Add the game title to the main menu
@@ -275,7 +278,7 @@ class Game:
 
         # Initialize the background image for the Balloons game
         self.balloons_game_bg_image = cv2.imread(
-            "./resources/images/balloons_game_bg.png"
+            f"{CWD}/resources/images/balloons_game_bg.png"
         )
 
         # Swap the color channels
@@ -356,20 +359,20 @@ class Game:
     def init_balloons(self):
         # Initialize the normal balloon image paths
         normal_balloon_image_paths = [
-            "./resources/images/balloon-red.png",
-            "./resources/images/balloon-green.png",
-            "./resources/images/balloon-blue.png",
-            "./resources/images/balloon-yellow.png",
-            "./resources/images/balloon-purple.png",
-            "./resources/images/balloon-orange.png",
-            "./resources/images/balloon-gray.png",
+            f"{CWD}/resources/images/balloon-red.png",
+            f"{CWD}/resources/images/balloon-green.png",
+            f"{CWD}/resources/images/balloon-blue.png",
+            f"{CWD}/resources/images/balloon-yellow.png",
+            f"{CWD}/resources/images/balloon-purple.png",
+            f"{CWD}/resources/images/balloon-orange.png",
+            f"{CWD}/resources/images/balloon-gray.png",
         ]
 
         # Initialize the combo balloon image paths
         combo_balloon_image_paths = [
-            "./resources/images/balloon-combo-1.png",
-            "./resources/images/balloon-combo-2.png",
-            "./resources/images/balloon-combo-3.png",
+            f"{CWD}/resources/images/balloon-combo-1.png",
+            f"{CWD}/resources/images/balloon-combo-2.png",
+            f"{CWD}/resources/images/balloon-combo-3.png",
         ]
 
         # Initialize the balloons waves configurations
@@ -436,7 +439,7 @@ class Game:
                     0, self.max_wave_time, (0, self.max_wave_time // 2), 10
                 )
                 balloon_type = (
-                    0 if not is_combo else int(balloon_img_path.split(".")[1][-1])
+                    0 if not is_combo else int(balloon_img_path.split(".")[-2][-1])
                 )
 
                 balloons.append(
