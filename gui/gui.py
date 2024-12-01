@@ -4,14 +4,13 @@ from pygame_menu.themes import Theme
 from pygame.locals import *
 from pygame import mixer
 import cv2
-import numpy as np
 import random
 import time
 import os
 
 from screeninfo import get_monitors
 
-from utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
+from .utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 
@@ -873,7 +872,3 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.start_main_menu()
-
-
-if __name__ == "__main__":
-    game = Game()
