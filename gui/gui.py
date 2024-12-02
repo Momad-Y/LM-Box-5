@@ -428,6 +428,7 @@ class Game:
 
         # Initialize the wave wait time
         self.wave_wait_time = 3
+        self.first_wave_wait_time = 10
 
         # Initialize the balloons
         self.init_balloons()
@@ -580,9 +581,7 @@ class Game:
 
             time_elapsed = int(time.time() - start_time)
             other_time_remaining = self.wave_wait_time - time_elapsed
-            wave_1_time_remaining = (
-                2 - time_elapsed
-            )  #! 10 Should be the time for the first wave not 2
+            wave_1_time_remaining = self.first_wave_wait_time - time_elapsed
 
             time_remaining = (
                 other_time_remaining
@@ -842,7 +841,7 @@ class Game:
             # Add score to the screen
             font = pygame.font.Font(self.font_path, 36)
             text = font.render(
-                f"Score: {self.balloons_score}",
+                f"Score:{self.balloons_score}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -854,7 +853,7 @@ class Game:
 
             # Add time to the screen
             text = font.render(
-                f"Time: {elapsed_time}",
+                f"Time:{elapsed_time}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -863,7 +862,7 @@ class Game:
 
             # Add wave to the screen
             text = font.render(
-                f"Wave: {self.balloons_wave}",
+                f"Wave:{self.balloons_wave}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -1001,7 +1000,7 @@ class Game:
             # Add the score to the center of the screen
             font = pygame.font.Font(self.font_path, 36)
             text = font.render(
-                f"Score: {self.balloons_score}",
+                f"Score:{self.balloons_score}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
