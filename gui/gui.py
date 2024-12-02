@@ -68,15 +68,15 @@ class Game:
         # Seed the random number generator
         random.seed(time.time())
 
-        # Initialize the themes and main menu
-        self.init_theme()
-        self.init_main_menu()
-
         # Initialize the camera
         self.init_camera()
 
         # Initialize the finger detection
         self.init_finger_detection()
+
+        # Initialize the themes and main menu
+        self.init_theme()
+        self.init_main_menu()
 
         # Start the main menu
         self.start_main_menu()
@@ -110,6 +110,9 @@ class Game:
             drawing_mode=pygame_menu.baseimage.IMAGE_MODE_FILL,
         )
 
+        self.game_over_sound = mixer.Sound(f"{CWD}/resources/sounds/game-over.ogg")
+        self.game_over_sound.set_volume(0.5)
+
         # Set the font
         self.font = pygame_menu.font.FONT_8BIT
 
@@ -132,10 +135,6 @@ class Game:
             columns=2,
             rows=8,
         )
-
-        # Set the background music
-        mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")
-        mixer.music.set_volume(0.1)
 
         # Add vertical space
         self.main_menu.add.vertical_margin(250)
@@ -282,9 +281,13 @@ class Game:
         )
 
     def start_main_menu(self):
+        # Set the background music for the main menu
+        mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")
+        mixer.music.set_volume(0.1)
+
         # Play the background music
         if not self.bg_music_muted:
-            mixer.music.play()
+            mixer.music.play(-1)
 
         self.main_menu_running = True
         self.balloons_game_running = False
@@ -310,6 +313,35 @@ class Game:
         mixer.music.set_volume(0.1)
 
     def init_balloons_game(self):
+        # Set the background music for the main menu
+        mixer.music.load(f"{CWD}/resources/sounds/balloon_game_bg_music.ogg")
+        mixer.music.set_volume(0.1)
+
+        # Play the background music
+        if not self.bg_music_muted:
+            mixer.music.play(-1)
+
+        # Load the balloon popping sounds
+        self.balloon_popping_sounds = [
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-1.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-2.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-3.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-4.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-5.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-6.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-7.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-8.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-9.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-10.ogg"),
+        ]
+        for sound in self.balloon_popping_sounds:
+            sound.set_volume(0.2)
+
+        # Load the balloon popping fill sounds
+        self.balloon_popping_fill_sounds = mixer.Sound(
+            f"{CWD}/resources/sounds/balloon-inflation.ogg"
+        )
+        self.balloon_popping_fill_sounds.set_volume(0.2)
 
         # Initialize the background image for the Balloons game
         self.balloons_game_bg_image = cv2.imread(
@@ -514,6 +546,9 @@ class Game:
         # Add a start timer for the game
         start_time = time.time()
 
+        # Play the balloon popping fill sound
+        self.balloon_popping_fill_sounds.play()
+
         while True:
             # Convert the background image to a Pygame image
             self.balloons_game_bg_image_pygame = pygame.image.frombuffer(
@@ -644,7 +679,7 @@ class Game:
                 self.screen.blit(text, text_rect)
 
                 text = font.render(
-                    "Press ESC anytime to return to the main menu",
+                    "Total of 5 waves with 20 seconds each",
                     True,
                     (255, 255, 255),
                     (0, 0, 0),
@@ -653,6 +688,20 @@ class Game:
                     center=(
                         self.screen.get_width() // 2,
                         self.screen.get_height() // 2 + 200,
+                    )
+                )
+                self.screen.blit(text, text_rect)
+
+                text = font.render(
+                    "Press ESC anytime to return to the main menu",
+                    True,
+                    (255, 255, 255),
+                    (0, 0, 0),
+                )
+                text_rect = text.get_rect(
+                    center=(
+                        self.screen.get_width() // 2,
+                        self.screen.get_height() // 2 + 250,
                     )
                 )
                 self.screen.blit(text, text_rect)
@@ -797,7 +846,7 @@ class Game:
                 (255, 255, 255),
                 (0, 0, 0),
             )
-            self.screen.blit(text, (30, (self.screen.get_height() // 2 - 50)))
+            self.screen.blit(text, (30, (self.screen.get_height() // 2 - 20)))
 
             # Calculate the elapsed time
             elapsed_time = int(time.time() - start_time)
@@ -820,7 +869,7 @@ class Game:
                 (255, 255, 255),
                 (0, 0, 0),
             )
-            self.screen.blit(text, (30, (self.screen.get_height() // 2 + 150)))
+            self.screen.blit(text, (30, (self.screen.get_height() // 2 + 120)))
 
             # Add game name to the top center of the screen
             font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 50)
@@ -843,6 +892,17 @@ class Game:
                 if balloon["is_popped"]:
                     continue
 
+                # Remove the balloon if it goes off the screen
+                if balloon["rect"].top <= self.start_y + balloon["rect"].height:
+
+                    # Remove a point if the balloon is not a combo balloon
+                    if not balloon["is_combo"]:
+                        self.balloons_score -= 1
+
+                    balloon["is_popped"] = True
+                    random.choice(self.balloon_popping_sounds).play()
+                    break
+
                 # Move the balloon up the screen and draw it
                 balloon["rect"].move_ip(0, -balloon["speed"])
                 self.screen.blit(
@@ -863,20 +923,11 @@ class Game:
                             self.balloons_score += 1
 
                         balloon["is_popped"] = True
+                        random.choice(self.balloon_popping_sounds).play()
                         break
 
-                # Remove the balloon if it goes off the screen
-                if balloon["rect"].top <= self.start_y + balloon["rect"].height:
-
-                    # Remove a point if the balloon is not a combo balloon
-                    if not balloon["is_combo"]:
-                        self.balloons_score -= 1
-
-                    balloon["is_popped"] = True
-                    break
-
             # Check if the balloons are all popped or the wave time is over
-            if len(balloons) == 0 or elapsed_time >= self.max_wave_time:
+            if len(balloons) == 0 or elapsed_time > self.max_wave_time:
                 self.balloons_wave += 1
                 self.start_balloons_game_wave_timer()
                 break
@@ -888,6 +939,8 @@ class Game:
             self.dt = self.clock.tick(30) / 1000
 
     def end_balloons_game(self):
+        # Play the game over sound
+        self.game_over_sound.play()
 
         while True:
             # Convert the background image to a Pygame image
