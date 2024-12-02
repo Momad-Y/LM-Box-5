@@ -12,6 +12,8 @@ from screeninfo import get_monitors
 
 from .utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
 
+from models import initialize_hand_detector, detect_hands
+
 CWD = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -51,11 +53,6 @@ class Game:
         self.clock = pygame.time.Clock()
         self.dt = 0
 
-        # Initialize the player's position
-        self.player_pos = pygame.Vector2(
-            self.screen.get_width() / 2, self.screen.get_height() / 2
-        )
-
         # Initialize a boolean for whether the game is running
         self.balloons_game_running = False
 
@@ -74,6 +71,9 @@ class Game:
 
         # Initialize the camera
         self.init_camera()
+
+        # Initialize the finger detection
+        self.init_finger_detection()
 
         # Start the main menu
         self.start_main_menu()
@@ -94,6 +94,10 @@ class Game:
 
         # Initialize the camera image
         self.camera_image = None
+
+    def init_finger_detection(self):
+        # Initialize the HandDetector object
+        self.hand_detector = initialize_hand_detector()
 
     def init_theme(self):
         # Set the background image
@@ -116,6 +120,7 @@ class Game:
 
     def init_main_menu(self):
         # Create the main menu
+        # Todo: Check Columns
         self.main_menu = pygame_menu.Menu(
             "",
             self.user_screen_width,
@@ -331,6 +336,14 @@ class Game:
         self.end_x = top_left_x + image_width
         self.end_y = top_left_y + image_height + 50
 
+        # Initialize the scale value for x and y
+        self.scale_x = self.user_screen_width / self.balloons_game_bg_image.shape[1]
+        self.scale_y = self.user_screen_height / self.balloons_game_bg_image.shape[0]
+
+        # Initialize the translate value for x and y
+        self.translation_x = int(self.start_x * self.scale_x)
+        self.translation_y = int(self.start_y * self.scale_y)
+
         # Initialize the score
         self.balloons_score = 0
 
@@ -338,16 +351,13 @@ class Game:
         self.balloons_wave = 1
 
         # Initialize the max number of waves
-        # !: This should be 5
-        self.max_balloons_waves = 2
+        self.max_balloons_waves = 5
 
         # Initialize the max wave time
-        # !: This should be 20
-        self.max_wave_time = 5
+        self.max_wave_time = 20
 
         # Initialize the wave wait time
-        # !: This should be 3
-        self.wave_wait_time = 1
+        self.wave_wait_time = 3
 
         # Initialize the balloons
         self.init_balloons()
@@ -417,12 +427,18 @@ class Game:
                 )
                 balloon_img = pygame.image.load(balloon_img_path)
                 balloon_img = pygame.transform.scale(balloon_img, (250, 250))
-                balloon_rect = pygame.Rect(
-                    random.randint(0, self.end_x) + self.start_x + 50,
-                    self.end_y + 50,
-                    50,
-                    50,
+                balloon_rect = balloon_img.get_rect()
+
+                # Randomize the balloon rect position
+                balloon_rect.update(
+                    (
+                        random.randint(0, self.end_x) + self.start_x + 100,
+                        self.end_y + 100,
+                        100,
+                        100,
+                    )
                 )
+
                 speed = (
                     random.randint(
                         combo_ballons_speed_per_wave[wave_number][0],
@@ -489,20 +505,11 @@ class Game:
                 ),
             )
 
-            # Draw the balloon game background image to the center of the screen
-            self.screen.blit(
-                self.balloons_game_bg_image_pygame,
-                (
-                    self.screen.get_width() / 2
-                    - self.balloons_game_bg_image_pygame.get_width() / 2,
-                    self.screen.get_height() / 2
-                    - self.balloons_game_bg_image_pygame.get_height() / 2,
-                ),
-            )
-
             time_elapsed = int(time.time() - start_time)
             other_time_remaining = self.wave_wait_time - time_elapsed
-            wave_1_time_remaining = 10 - time_elapsed
+            wave_1_time_remaining = (
+                2 - time_elapsed
+            )  #! 10 Should be the time for the first wave not 2
 
             time_remaining = (
                 other_time_remaining
@@ -656,6 +663,65 @@ class Game:
                 ),
             )
 
+            # Get the right and left hand centers
+            hands_data = detect_hands(self.hand_detector, self.camera_image)
+            try:
+                fingers_centers_right = hands_data["right_hand"]["fingers_centers"]
+            except:
+                fingers_centers_right = [(-1, -1) for _ in range(5)]
+
+            try:
+                fingers_centers_left = hands_data["left_hand"]["fingers_centers"]
+            except:
+                fingers_centers_left = [(-1, -1) for _ in range(5)]
+
+            # Initialize the fingers centers rects
+            fingers_centers_rects = []
+
+            # Apply the transformations to the fingers centers and add them to the fingers centers rects
+            for finger_center in fingers_centers_right:
+                if finger_center == (-1, -1):
+                    continue
+
+                finger_center = (
+                    int(finger_center[0] * self.scale_x) + self.translation_x,
+                    int(finger_center[1] * self.scale_y) + self.translation_y,
+                )
+
+                fingers_centers_rects.append(
+                    pygame.Rect(finger_center[0], finger_center[1], 20, 20)
+                )
+
+                # Draw the finger rect #! Remove this
+                pygame.draw.rect(
+                    self.screen,
+                    (255, 0, 0),
+                    fingers_centers_rects[-1],
+                    1,
+                )
+
+            for finger_center in fingers_centers_left:
+                if finger_center == (-1, -1):
+                    continue
+
+                finger_center = (
+                    int(finger_center[0] * self.scale_x) + self.translation_x,
+                    int(finger_center[1] * self.scale_y) + self.translation_y,
+                )
+
+                fingers_centers_rects.append(
+                    pygame.Rect(finger_center[0], finger_center[1], 20, 20)
+                )
+
+                # Draw the finger rect #! Remove this
+                pygame.draw.rect(
+                    self.screen,
+                    (255, 0, 0),
+                    fingers_centers_rects[-1],
+                    1,
+                )
+
+            # Todo: Add a pin over the fingers rect
             # Add rounded corners to the camera image
             self.camera_image = img_with_rounded_corners(
                 self.camera_image, 30, 2, (0, 0, 0)
@@ -749,10 +815,24 @@ class Game:
 
                 # Move the balloon up the screen and draw it
                 balloon["rect"].move_ip(0, -balloon["speed"])
-                self.screen.blit(balloon["image"], balloon["rect"])
+                self.screen.blit(
+                    balloon["image"],
+                    (balloon["rect"].left - 70, balloon["rect"].top - 40),
+                )
+
+                # Check if the balloon is popped by the fingers
+                for finger_rect in fingers_centers_rects:
+                    if balloon["rect"].colliderect(finger_rect):
+                        if balloon["is_combo"]:
+                            self.balloons_score += balloon["type"] + 2
+                        else:
+                            self.balloons_score += 1
+
+                        balloons.remove(balloon)
+                        break
 
                 # Remove the balloon if it goes off the screen
-                if balloon["rect"].top <= self.start_y + 70:
+                if balloon["rect"].top <= self.start_y - balloon["rect"].height:
                     balloons.remove(balloon)
 
                     # Remove a point if the balloon is not a combo balloon
