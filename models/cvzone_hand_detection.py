@@ -38,7 +38,6 @@ def detect_hands(detector: HandDetector, img: np.ndarray) -> dict:
             The data of the detected hands.
     """
 
-    img = cv2.flip(img, 1)  # Flipping the video frame
     hand_data = detector.findHands(img, draw=False)  # Detecting the hand
 
     hands = hand_data[0]  # Getting the hand data
@@ -106,11 +105,7 @@ def detect_hands(detector: HandDetector, img: np.ndarray) -> dict:
         )
 
         fingers_centers_left = [
-            0,
-            0,
-            0,
-            0,
-            0,
+            (-1, -1) for _ in range(5)
         ]  # Initializing the list to store the centers of the fingers
 
         # Getting the centers of the fingers
@@ -140,8 +135,9 @@ def detect_hands(detector: HandDetector, img: np.ndarray) -> dict:
             + fingerup_right[4]
         )
 
-        # Initializing the list to store the centers of the fingers
-        fingers_centers_right = [0, 0, 0, 0, 0]
+        fingers_centers_right = [
+            (-1, -1) for _ in range(5)
+        ]  # Initializing the list to store the centers of the fingers
 
         # Getting the centers of the fingers
         for i in range(5):
@@ -177,6 +173,16 @@ def demo() -> None:
 
     while True:
         _, img = cap.read()
+
+        img = cv2.flip(img, 1)
+
+        img = cv2.resize(
+            img,
+            (
+                768,
+                432,
+            ),
+        )
 
         # Detect the hands
         hand_data = detect_hands(detector, img)
