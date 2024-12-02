@@ -28,6 +28,17 @@ class Game:
         self.default_screen_height = 720  # The default screen height
         self.user_camera_number = 0  # The camera number to use for the game
 
+        # Get the user's screen resolution
+        user_screen = get_monitors()[self.user_screen_number]
+        self.user_screen_width = user_screen.width
+        self.user_screen_height = user_screen.height
+
+        # Initialize the camera
+        self.init_camera()
+
+        # Initialize the finger detection
+        self.init_finger_detection()
+
         # Start Pygame
         pygame.init()
 
@@ -37,11 +48,6 @@ class Game:
         # Set the icon
         icon = pygame.image.load(f"{CWD}/resources/images/5-lmbox-icon.png")
         pygame.display.set_icon(icon)
-
-        # Get the user's screen resolution
-        user_screen = get_monitors()[self.user_screen_number]
-        self.user_screen_width = user_screen.width
-        self.user_screen_height = user_screen.height
 
         # Create a screen
         self.screen = pygame.display.set_mode(
@@ -65,14 +71,11 @@ class Game:
         # Initialize a boolean for whether the background music is muted
         self.bg_music_muted = False
 
+        # Initialize the font for the game
+        self.font_path = f"{CWD}/resources/fonts/joystix monospace.otf"
+
         # Seed the random number generator
         random.seed(time.time())
-
-        # Initialize the camera
-        self.init_camera()
-
-        # Initialize the finger detection
-        self.init_finger_detection()
 
         # Initialize the themes and main menu
         self.init_theme()
@@ -113,16 +116,14 @@ class Game:
         self.game_over_sound = mixer.Sound(f"{CWD}/resources/sounds/game-over.ogg")
         self.game_over_sound.set_volume(0.5)
 
-        # Set the font
-        self.font = pygame_menu.font.FONT_8BIT
-
         # Create a theme
+        font = pygame.font.Font(self.font_path, 50)
         self.theme = Theme(
             background_color=self.menu_bg_image,
             title_bar_style=pygame_menu.widgets.MENUBAR_STYLE_NONE,
             widget_font_color=(251, 251, 251),
             widget_font_size=50,
-            widget_font=self.font,
+            widget_font=font,
         )
 
     def init_main_menu(self):
@@ -590,7 +591,7 @@ class Game:
             )
 
             # Add the timer to the center of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 40)
+            font = pygame.font.Font(self.font_path, 40)
             text = font.render(
                 f"Wave {self.balloons_wave} starts in {time_remaining} seconds",
                 True,
@@ -614,14 +615,14 @@ class Game:
             self.screen.blit(text, text_rect)
 
             # Add the game name to the top center of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 50)
+            font = pygame.font.Font(self.font_path, 50)
             text = font.render("Balloons Game", True, (255, 255, 255), (0, 0, 0))
             text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
             self.screen.blit(text, text_rect)
 
             # Show instructions if the wave is 1
             if self.balloons_wave == 1:
-                font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 30)
+                font = pygame.font.Font(self.font_path, 30)
                 text = font.render(
                     "Pop the balloons with your fingers",
                     True,
@@ -839,9 +840,9 @@ class Game:
                 )
 
             # Add score to the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 36)
+            font = pygame.font.Font(self.font_path, 36)
             text = font.render(
-                f"Score is {max(0, self.balloons_score)}",
+                f"Score: {self.balloons_score}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -852,9 +853,8 @@ class Game:
             elapsed_time = int(time.time() - start_time)
 
             # Add time to the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 36)
             text = font.render(
-                f"Time is {elapsed_time}",
+                f"Time: {elapsed_time}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -862,9 +862,8 @@ class Game:
             self.screen.blit(text, (30, (self.screen.get_height() // 2 + 50)))
 
             # Add wave to the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 36)
             text = font.render(
-                f"Wave is {self.balloons_wave}",
+                f"Wave: {self.balloons_wave}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -872,7 +871,7 @@ class Game:
             self.screen.blit(text, (30, (self.screen.get_height() // 2 + 120)))
 
             # Add game name to the top center of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 50)
+            font = pygame.font.Font(self.font_path, 50)
             text = font.render("Balloons Game", True, (255, 255, 255), (0, 0, 0))
             text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
             self.screen.blit(text, text_rect)
@@ -897,7 +896,7 @@ class Game:
 
                     # Remove a point if the balloon is not a combo balloon
                     if not balloon["is_combo"]:
-                        self.balloons_score -= 1
+                        self.balloons_score = max(0, self.balloons_score - 1)
 
                     balloon["is_popped"] = True
                     random.choice(self.balloon_popping_sounds).play()
@@ -914,13 +913,13 @@ class Game:
                 for finger_rect in fingers_centers_rects:
                     if balloon["rect"].colliderect(finger_rect):
                         if balloon["type"] == 1:
-                            self.balloons_score += 2
+                            self.balloons_score = max(0, self.balloons_score + 2)
                         elif balloon["type"] == 2:
-                            self.balloons_score += 3
+                            self.balloons_score = max(0, self.balloons_score + 3)
                         elif balloon["type"] == 3:
-                            self.balloons_score += 5
+                            self.balloons_score = max(0, self.balloons_score + 5)
                         else:
-                            self.balloons_score += 1
+                            self.balloons_score = max(0, self.balloons_score + 1)
 
                         balloon["is_popped"] = True
                         random.choice(self.balloon_popping_sounds).play()
@@ -941,6 +940,8 @@ class Game:
     def end_balloons_game(self):
         # Play the game over sound
         self.game_over_sound.play()
+
+        self.balloons_score = max(0, self.balloons_score)
 
         while True:
             # Convert the background image to a Pygame image
@@ -982,7 +983,7 @@ class Game:
             )
 
             # Add the game over text to the top of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 80)
+            font = pygame.font.Font(self.font_path, 50)
             text = font.render(
                 f"Game Over",
                 True,
@@ -998,9 +999,9 @@ class Game:
             self.screen.blit(text, text_rect)
 
             # Add the score to the center of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 60)
+            font = pygame.font.Font(self.font_path, 36)
             text = font.render(
-                f"Score is {max(0, self.balloons_score)}",
+                f"Score: {self.balloons_score}",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -1014,7 +1015,7 @@ class Game:
             self.screen.blit(text, text_rect)
 
             # Add "Press ESC to return to the main menu" to the center of the screen
-            font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 30)
+            font = pygame.font.Font(self.font_path, 24)
             text = font.render(
                 f"Press ESC to return to the main menu",
                 True,
