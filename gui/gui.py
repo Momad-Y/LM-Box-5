@@ -3,7 +3,9 @@ import pygame_menu
 from pygame_menu.themes import Theme
 from pygame.locals import *
 from pygame import mixer
+
 import cv2
+
 import random
 import time
 import os
@@ -14,6 +16,7 @@ from .utils import img_with_rounded_corners, random_bool_by_chance, biased_rando
 
 from models import initialize_hand_detector, detect_hands
 
+# Get the current working directory
 CWD = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -82,6 +85,7 @@ class Game:
         # Initialize the camera
         self.cap = cv2.VideoCapture(self.user_camera_number)
 
+        # Check if the camera is opened
         if not self.cap.isOpened():
             raise Exception("Could not open the camera.")
 
@@ -120,45 +124,21 @@ class Game:
 
     def init_main_menu(self):
         # Create the main menu
-        # Todo: Check Columns
         self.main_menu = pygame_menu.Menu(
             "",
             self.user_screen_width,
             self.user_screen_height,
             theme=self.theme,
+            columns=2,
+            rows=8,
         )
 
         # Set the background music
         mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")
         mixer.music.set_volume(0.1)
 
-        # Add the game title to the main menu
-        self.main_menu.add.label(
-            self.game_name,
-            font_size=100,
-            margin=(0, 0),
-            padding=(0, 0),
-            selectable=False,
-            background_color=(0, 0, 0),
-        )
-
-        # Add vertical space to the main menu
-        self.main_menu.add.vertical_margin(230)
-
-        # Add the "Settings" button to the main menu
-        self.main_menu.add.button(
-            "Settings",
-            self.init_balloons_game,
-            align=pygame_menu.locals.ALIGN_RIGHT,
-            margin=(-110, 0),
-            padding=(0, 0),
-            background_color=(0, 0, 0),
-            selection_effect=pygame_menu.widgets.LeftArrowSelection(
-                arrow_right_margin=15,
-                arrow_vertical_offset=0,
-            ),
-            cursor=pygame.SYSTEM_CURSOR_HAND,
-        )
+        # Add vertical space
+        self.main_menu.add.vertical_margin(250)
 
         # Add the "Play Balloons" button to the main menu
         self.main_menu.add.button(
@@ -175,20 +155,8 @@ class Game:
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
 
-        # Add the "Credits" button to the main menu
-        self.main_menu.add.button(
-            "Credits",
-            self.init_balloons_game,
-            align=pygame_menu.locals.ALIGN_RIGHT,
-            margin=(-110, 0),
-            padding=(0, 0),
-            background_color=(0, 0, 0),
-            selection_effect=pygame_menu.widgets.LeftArrowSelection(
-                arrow_right_margin=15,
-                arrow_vertical_offset=0,
-            ),
-            cursor=pygame.SYSTEM_CURSOR_HAND,
-        )
+        # Add vertical space
+        self.main_menu.add.vertical_margin(50)
 
         # Add the "Play Pong" button to the main menu
         self.main_menu.add.button(
@@ -205,20 +173,8 @@ class Game:
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
 
-        # Add the "Toggle Music" button to the main menu
-        self.main_menu.add.button(
-            "Toggle Music",
-            self.toggle_bg_music,
-            align=pygame_menu.locals.ALIGN_RIGHT,
-            margin=(-110, 0),
-            padding=(0, 0),
-            background_color=(0, 0, 0),
-            selection_effect=pygame_menu.widgets.LeftArrowSelection(
-                arrow_right_margin=15,
-                arrow_vertical_offset=0,
-            ),
-            cursor=pygame.SYSTEM_CURSOR_HAND,
-        )
+        # Add vertical space
+        self.main_menu.add.vertical_margin(50)
 
         # Add the "Play Runner" button to the main menu
         self.main_menu.add.button(
@@ -235,9 +191,84 @@ class Game:
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
 
+        # Add vertical space
+        self.main_menu.add.vertical_margin(50)
+
         # Add the "Quit" button to the main menu
         self.main_menu.add.button(
             "Quit",
+            pygame_menu.events.EXIT,
+            align=pygame_menu.locals.ALIGN_LEFT,
+            margin=(100, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
+
+        # Add vertical space
+        self.main_menu.add.vertical_margin(250)
+
+        # Add the "Users" button to the main menu
+        self.main_menu.add.button(
+            "Users",
+            pygame_menu.events.EXIT,
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
+
+        # Add vertical space
+        self.main_menu.add.vertical_margin(50)
+
+        # Add the "Toggle Music" button to the main menu
+        self.main_menu.add.button(
+            "Toggle Music",
+            self.toggle_bg_music,
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
+
+        # Add vertical space
+        self.main_menu.add.vertical_margin(50)
+
+        # Add the "Settings" button to the main menu
+        self.main_menu.add.button(
+            "Settings",
+            pygame_menu.events.EXIT,
+            align=pygame_menu.locals.ALIGN_RIGHT,
+            margin=(-110, 0),
+            padding=(0, 0),
+            background_color=(0, 0, 0),
+            selection_effect=pygame_menu.widgets.LeftArrowSelection(
+                arrow_right_margin=15,
+                arrow_vertical_offset=0,
+            ),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
+
+        # Add vertical space
+        self.main_menu.add.vertical_margin(50)
+
+        # Add the "Credits" button to the main menu
+        self.main_menu.add.button(
+            "Credits",
             pygame_menu.events.EXIT,
             align=pygame_menu.locals.ALIGN_RIGHT,
             margin=(-110, 0),
@@ -294,6 +325,12 @@ class Game:
         self.balloons_game_bg_image = cv2.cvtColor(
             self.balloons_game_bg_image, cv2.COLOR_RGB2RGBA
         )
+
+        # Initialize the pin image
+        self.pin_image = pygame.image.load(f"{CWD}/resources/images/pin.png")
+
+        # Make the pin image smaller
+        self.pin_image = pygame.transform.scale(self.pin_image, (70, 70))
 
         # Initialize the balloons list
         self.balloons = []
@@ -385,7 +422,6 @@ class Game:
         ]
 
         # Initialize the balloons waves configurations
-        # Todo: Refactor this to be more fair
         ballons_number_per_wave = [
             [5, 15],
             [15, 25],
@@ -432,7 +468,7 @@ class Game:
                 # Randomize the balloon rect position
                 balloon_rect.update(
                     (
-                        random.randint(0, self.end_x) + self.start_x + 100,
+                        random.randint(0, self.end_x) + self.start_x + 110,
                         self.end_y + 100,
                         100,
                         100,
@@ -465,6 +501,7 @@ class Game:
                         "time": apperance_time,
                         "is_combo": is_combo,
                         "type": balloon_type,
+                        "is_popped": False,
                     }
                 )
             self.waves_balloons.append(balloons)
@@ -692,14 +729,6 @@ class Game:
                     pygame.Rect(finger_center[0], finger_center[1], 20, 20)
                 )
 
-                # Draw the finger rect #! Remove this
-                pygame.draw.rect(
-                    self.screen,
-                    (255, 0, 0),
-                    fingers_centers_rects[-1],
-                    1,
-                )
-
             for finger_center in fingers_centers_left:
                 if finger_center == (-1, -1):
                     continue
@@ -713,15 +742,6 @@ class Game:
                     pygame.Rect(finger_center[0], finger_center[1], 20, 20)
                 )
 
-                # Draw the finger rect #! Remove this
-                pygame.draw.rect(
-                    self.screen,
-                    (255, 0, 0),
-                    fingers_centers_rects[-1],
-                    1,
-                )
-
-            # Todo: Add a pin over the fingers rect
             # Add rounded corners to the camera image
             self.camera_image = img_with_rounded_corners(
                 self.camera_image, 30, 2, (0, 0, 0)
@@ -761,6 +781,13 @@ class Game:
                     - self.balloons_game_bg_image_pygame.get_height() / 2,
                 ),
             )
+
+            # Draw the pins on the fingers centers
+            for finger_rect in fingers_centers_rects:
+                self.screen.blit(
+                    self.pin_image,
+                    (finger_rect.left - 40, finger_rect.top - 30),
+                )
 
             # Add score to the screen
             font = pygame.font.Font(pygame_menu.font.FONT_8BIT, 36)
@@ -813,6 +840,9 @@ class Game:
                 if elapsed_time < balloon["time"]:
                     continue
 
+                if balloon["is_popped"]:
+                    continue
+
                 # Move the balloon up the screen and draw it
                 balloon["rect"].move_ip(0, -balloon["speed"])
                 self.screen.blit(
@@ -823,21 +853,27 @@ class Game:
                 # Check if the balloon is popped by the fingers
                 for finger_rect in fingers_centers_rects:
                     if balloon["rect"].colliderect(finger_rect):
-                        if balloon["is_combo"]:
-                            self.balloons_score += balloon["type"] + 2
+                        if balloon["type"] == 1:
+                            self.balloons_score += 2
+                        elif balloon["type"] == 2:
+                            self.balloons_score += 3
+                        elif balloon["type"] == 3:
+                            self.balloons_score += 5
                         else:
                             self.balloons_score += 1
 
-                        balloons.remove(balloon)
+                        balloon["is_popped"] = True
                         break
 
                 # Remove the balloon if it goes off the screen
-                if balloon["rect"].top <= self.start_y - balloon["rect"].height:
-                    balloons.remove(balloon)
+                if balloon["rect"].top <= self.start_y + balloon["rect"].height:
 
                     # Remove a point if the balloon is not a combo balloon
                     if not balloon["is_combo"]:
                         self.balloons_score -= 1
+
+                    balloon["is_popped"] = True
+                    break
 
             # Check if the balloons are all popped or the wave time is over
             if len(balloons) == 0 or elapsed_time >= self.max_wave_time:
