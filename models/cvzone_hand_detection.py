@@ -112,7 +112,7 @@ def detect_hands(detector: HandDetector, img: np.ndarray) -> dict:
         for i in range(5):
             if fingerup_left[i] == 1:
                 fingers_centers_left[i] = tuple(left_hand["lmList"][(i + 1) * 4][0:2])
-                cv2.circle(img, fingers_centers_left[i], 5, (255, 0, 0), cv2.FILLED)
+                # cv2.circle(img, fingers_centers_left[i], 5, (255, 0, 0), cv2.FILLED)
 
         # Storing the left hand data
         hand_data["left_hand"] = {
@@ -143,7 +143,7 @@ def detect_hands(detector: HandDetector, img: np.ndarray) -> dict:
         for i in range(5):
             if fingerup_right[i] == 1:
                 fingers_centers_right[i] = tuple(right_hand["lmList"][(i + 1) * 4][0:2])
-                cv2.circle(img, fingers_centers_right[i], 5, (255, 0, 0), cv2.FILLED)
+                # cv2.circle(img, fingers_centers_right[i], 5, (255, 0, 0), cv2.FILLED)
 
         # Storing the right hand data
         hand_data["right_hand"] = {
