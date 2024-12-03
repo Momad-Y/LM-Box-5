@@ -69,6 +69,7 @@ class Game:
         self.balloons_game_running = False
         self.main_menu_running = False
         self.pong_game_running = False
+        self.credits_running = False
 
         # Initialize a boolean for whether the background music is muted
         self.bg_music_muted = False  #! Set to True for testing
@@ -272,7 +273,7 @@ class Game:
         # Add the "Credits" button to the main menu
         self.main_menu.add.button(
             "Credits",
-            pygame_menu.events.EXIT,
+            self.init_credits,
             align=pygame_menu.locals.ALIGN_RIGHT,
             margin=(-110, 0),
             padding=(0, 0),
@@ -296,9 +297,131 @@ class Game:
         self.main_menu_running = True
         self.balloons_game_running = False
         self.pong_game_running = False
+        self.credits_running = False
 
         # Set the main menu as the main menu of the game
         self.main_menu.mainloop(self.screen)
+
+    def init_credits(self):
+        # Create the credits dialog
+        self.credits_dict = {
+            "Game Development": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Graphics": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Music & SFX": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Computer Vision": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Level Design": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Testing": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Production": "Mohamed Abdelnasser, Abdelrahman Saeed",
+            "Powered by": "Pygame, OpenCV, Mediapipe, CV Zone",
+            "3D Models": "No 3D models used",
+            "Contact Mohamed": "mohamed.y.abdelnasser@gmail.com",
+            "Contact Abdelrahman": "abdosaaed749@gmail.com",
+            "Special Thanks": "No one",
+        }
+
+        # Load the background image
+        self.credits_bg_image = pygame.image.load(
+            f"{CWD}/resources/images/credits_bg.png"
+        )
+
+        # Resize the background image to fit the screen
+        self.credits_bg_image = pygame.transform.scale(
+            self.credits_bg_image, (self.user_screen_width, self.user_screen_height)
+        )
+
+        self.text_rects = []
+        self.texts = []
+
+        # Add the game name to the top center of the screen
+        font = pygame.font.Font(self.font_path, 50)
+        text = font.render(self.game_name, True, (255, 255, 255), (0, 0, 0))
+        self.texts.append(text)
+        text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
+        self.text_rects.append(text_rect)
+
+        # Add the credits to the screen
+        font = pygame.font.Font(self.font_path, 30)
+        y = 300
+        for key, value in self.credits_dict.items():
+            text_key = font.render(key, True, (255, 255, 255), (0, 0, 0))
+            text_value = font.render(value, True, (255, 255, 255), (0, 0, 0))
+            self.texts.append(text_key)
+            self.texts.append(text_value)
+            text_rect_key = text_key.get_rect(
+                center=((self.screen.get_width() // 4) - 100, y)
+            )
+            text_rect_value = text_value.get_rect(
+                center=(
+                    ((self.screen.get_width() // 4) * 3 - 200),
+                    y,
+                )
+            )
+            self.text_rects.append(text_rect_key)
+            self.text_rects.append(text_rect_value)
+            self.screen.blit(text, text_rect)
+            y += 50
+
+        # Add the "Press ESC to return to the main menu" text to the bottom center of the screen
+        text = font.render(
+            "Press ESC to return to the main menu",
+            True,
+            (255, 255, 255),
+            (0, 0, 0),
+        )
+        self.texts.append(text)
+        text_rect = text.get_rect(
+            center=(self.screen.get_width() // 2, self.screen.get_height() - 100)
+        )
+        self.text_rects.append(text_rect)
+
+        # Start the credits dialog
+        self.start_credits()
+
+    def start_credits(self):
+
+        # Set the credits dialog as running
+        self.credits_running = True
+        self.balloons_game_running = False
+        self.main_menu_running = False
+        self.pong_game_running = False
+
+        is_space = False
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        is_space = True
+
+            # Draw the credits background image to the screen
+            self.screen.blit(
+                self.credits_bg_image,
+                (
+                    self.screen.get_width() / 2 - self.credits_bg_image.get_width() / 2,
+                    self.screen.get_height() / 2
+                    - self.credits_bg_image.get_height() / 2,
+                ),
+            )
+
+            # Make the credits scroll
+            for text, text_rect in zip(self.texts, self.text_rects):
+                self.screen.blit(text, text_rect)
+
+                if is_space:
+                    text_rect.y -= 1
+                if text_rect.y < 0:
+                    text_rect.y = self.screen.get_height()
+
+            # Update the display
+            pygame.display.flip()
 
     def toggle_bg_music(self):
         # Mute or unmute the background music
@@ -381,6 +504,7 @@ class Game:
         self.main_menu_running = False
         self.balloons_game_running = True
         self.pong_game_running = False
+        self.credits_running = False
 
         # Take an initial camera image
         _, self.camera_image = self.cap.read()
@@ -1112,6 +1236,7 @@ class Game:
         self.main_menu_running = False
         self.balloons_game_running = False
         self.pong_game_running = True
+        self.credits_running = False
 
         # Take an initial camera image
         _, self.camera_image = self.cap.read()
