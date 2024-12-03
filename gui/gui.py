@@ -1228,11 +1228,15 @@ class Game:
             f"{CWD}/resources/sounds/referee-whistle-2.ogg"
         )
         self.point_whistle_sound.set_volume(0.2)
-        self.pong_game_over_sound.set_volume(0.2)
+        self.pong_game_over_sound.set_volume(0.5)
 
         # Load game over sound
         self.ball_drop_sound = mixer.Sound(f"{CWD}/resources/sounds/ball-dropping.ogg")
         self.ball_drop_sound.set_volume(0.2)
+
+        # Initialize the max score
+        # self.max_score = 7
+        self.max_score = 1  #!
 
         # Start the Pong game timer
         self.start_pong_game_timer()
@@ -1351,7 +1355,7 @@ class Game:
             self.screen.blit(text, text_rect)
 
             text = font.render(
-                "First player to reach 7 points wins",
+                f"First player to reach {self.max_score} points wins",
                 True,
                 (255, 255, 255),
                 (0, 0, 0),
@@ -1710,6 +1714,13 @@ class Game:
                 ),
             )
 
+            if (
+                self.player1_score == self.max_score
+                or self.player2_score == self.max_score
+            ):
+                self.end_pong_game()
+                break
+
             # Update the display
             pygame.display.flip()
 
@@ -1717,4 +1728,98 @@ class Game:
             self.dt = self.clock.tick(30) / 1000
 
     def end_pong_game(self):
-        pass
+        # Play the game over sound
+        self.pong_game_over_sound.play()
+
+        # Get the winner
+        winner = "Player 1" if self.player1_score == self.max_score else "Player 2"
+
+        while True:
+            # Convert the background image to a Pygame image
+            self.pong_game_bg_image_pygame = pygame.image.frombuffer(
+                self.pong_game_bg_image.tobytes(),
+                (
+                    self.pong_game_bg_image.shape[1],
+                    self.pong_game_bg_image.shape[0],
+                ),
+                "RGBA",
+            )
+
+            # Resize the background image to fit the screen
+            self.pong_game_bg_image_pygame = pygame.transform.scale(
+                self.pong_game_bg_image_pygame,
+                (self.user_screen_width, self.user_screen_height),
+            )
+
+            # Draw the Pong game background image to the center of the screen
+            self.screen.blit(
+                self.pong_game_bg_image_pygame,
+                (
+                    self.screen.get_width() / 2
+                    - self.pong_game_bg_image_pygame.get_width() / 2,
+                    self.screen.get_height() / 2
+                    - self.pong_game_bg_image_pygame.get_height() / 2,
+                ),
+            )
+
+            # Add the game over text to the top of the screen
+            font = pygame.font.Font(self.font_path, 50)
+            text = font.render(
+                f"Game Over",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 - 50,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Add the winner to the center of the screen
+            font = pygame.font.Font(self.font_path, 36)
+            text = font.render(
+                f"{winner} wins",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 + 70,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Add "Press ESC to return to the main menu" to the center of the screen
+            font = pygame.font.Font(self.font_path, 24)
+            text = font.render(
+                f"Press ESC to return to the main menu",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() - 50,
+                )
+            )
+
+            self.screen.blit(text, text_rect)
+
+            # Update the display
+            pygame.display.flip()
+
+            # If the user presses the escape key, return to the main menu
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
