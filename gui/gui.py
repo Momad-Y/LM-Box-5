@@ -119,9 +119,6 @@ class Game:
             drawing_mode=pygame_menu.baseimage.IMAGE_MODE_FILL,
         )
 
-        self.game_over_sound = mixer.Sound(f"{CWD}/resources/sounds/game-over.ogg")
-        self.game_over_sound.set_volume(0.5)
-
         # Create a theme
         font = pygame.font.Font(self.font_path, 50)
         self.theme = Theme(
@@ -344,6 +341,11 @@ class Game:
         ]
         for sound in self.balloon_popping_sounds:
             sound.set_volume(0.2)
+
+        self.balloon_game_over_sound = mixer.Sound(
+            f"{CWD}/resources/sounds/game-over.ogg"
+        )
+        self.balloon_game_over_sound.set_volume(0.5)
 
         # Load the balloon popping fill sounds
         self.balloon_popping_fill_sounds = mixer.Sound(
@@ -960,7 +962,7 @@ class Game:
 
     def end_balloons_game(self):
         # Play the game over sound
-        self.game_over_sound.play()
+        self.balloon_game_over_sound.play()
 
         self.balloons_score = max(0, self.balloons_score)
 
@@ -1206,13 +1208,41 @@ class Game:
         # Initialize the wave wait time
         self.pong_first_wave_wait_time = 10
 
+        # Load hit sounds
+        self.hit_sounds = [
+            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-1.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-2.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-3.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-4.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-5.ogg"),
+            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-6.ogg"),
+        ]
+        for sound in self.hit_sounds:
+            sound.set_volume(0.2)
+
+        # Load whistle sound
+        self.point_whistle_sound = mixer.Sound(
+            f"{CWD}/resources/sounds/referee-whistle-1.ogg"
+        )
+        self.pong_game_over_sound = mixer.Sound(
+            f"{CWD}/resources/sounds/referee-whistle-2.ogg"
+        )
+        self.point_whistle_sound.set_volume(0.2)
+        self.pong_game_over_sound.set_volume(0.2)
+
+        # Load game over sound
+        self.ball_drop_sound = mixer.Sound(f"{CWD}/resources/sounds/ball-dropping.ogg")
+        self.ball_drop_sound.set_volume(0.2)
+
         # Start the Pong game timer
-        # self.start_pong_game_timer() #! Add this line
-        self.start_pong_game()  #! Remove this line
+        self.start_pong_game_timer()
 
     def start_pong_game_timer(self):
         # Add a start timer for the game
         start_time = time.time()
+
+        # Play the ball drop sound
+        self.ball_drop_sound.play()
 
         while True:
             for event in pygame.event.get():
@@ -1458,9 +1488,11 @@ class Game:
 
             # Check if the ball hits the top or bottom of the screen
             if self.ball_y <= self.play_field_rect.height + self.ball_raduis:
+                self.hit_sounds[random.randint(0, len(self.hit_sounds) - 1)].play()
                 self.ball_speed_y = -self.ball_speed_y
             elif self.ball_y >= self.play_field_rect.bottom - self.ball_raduis:
                 self.ball_speed_y = -self.ball_speed_y
+                self.hit_sounds[random.randint(0, len(self.hit_sounds) - 1)].play()
 
             # Convert the ball poistion to a pygame rect
             ball_rect = pygame.Rect(
@@ -1477,16 +1509,17 @@ class Game:
 
             # Check if the ball hits the paddle
             if paddle_rect1.colliderect(ball_rect):
+                self.hit_sounds[random.randint(0, len(self.hit_sounds) - 1)].play()
                 self.ball_speed_x = -self.ball_speed_x
-                # Move the ball to the right of the paddle
                 self.ball_x = self.paddle1_x + self.paddle_width + self.ball_raduis
             elif paddle_rect2.colliderect(ball_rect):
+                self.hit_sounds[random.randint(0, len(self.hit_sounds) - 1)].play()
                 self.ball_speed_x = -self.ball_speed_x
-                # Move the ball to the left of the paddle
                 self.ball_x = self.paddle2_x - self.ball_raduis
 
             # Check if the ball hits the left or right of the screen
             if self.ball_x <= self.play_field_rect.left + self.ball_raduis:
+                self.point_whistle_sound.play()
                 self.player2_score += 1
                 self.ball_x = self.play_field_rect.centerx
                 self.ball_y = self.play_field_rect.centery
@@ -1495,6 +1528,7 @@ class Game:
                 round_start_time = time.time()
 
             elif self.ball_x >= self.play_field_rect.right - self.ball_raduis:
+                self.point_whistle_sound.play()
                 self.player1_score += 1
                 self.ball_x = self.play_field_rect.centerx
                 self.ball_y = self.play_field_rect.centery
