@@ -1069,9 +1069,7 @@ class Game:
     def init_pong_game(self):
 
         # Set the background music for the main menu
-        mixer.music.load(
-            f"{CWD}/resources/sounds/pong_game_bg_music.ogg"
-        )  # Todo: Add pong game bg music
+        mixer.music.load(f"{CWD}/resources/sounds/pong_game_bg_music.ogg")
         mixer.music.set_volume(0.1)
 
         # Play the background music
