@@ -14,7 +14,7 @@ from screeninfo import get_monitors
 
 from .utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
 
-from models import initialize_hand_detector, detect_hands
+from models import initialize_hand_detector, detect_hands, HandTrackingDynamic
 
 # Get the current working directory
 CWD = os.path.dirname(os.path.abspath(__file__))
@@ -24,8 +24,8 @@ class Game:
     def __init__(self):
         self.user_screen_number = 0  # The screen number to display the game on
         self.game_name = "LM Box 5"  # The name of the game
-        self.default_screen_width = 1280  # The default screen width
-        self.default_screen_height = 720  # The default screen height
+        self.initial_screen_width = 1280  # The default screen width
+        self.initial_screen_height = 720  # The default screen height
         self.user_camera_number = 0  # The camera number to use for the game
 
         # Get the user's screen resolution
@@ -38,6 +38,9 @@ class Game:
 
         # Initialize the finger detection
         self.init_finger_detection()
+
+        # Initialize the hand tracking
+        self.init_hand_tracking()
 
         # Start Pygame
         pygame.init()
@@ -62,14 +65,13 @@ class Game:
         self.clock = pygame.time.Clock()
         self.dt = 0
 
-        # Initialize a boolean for whether the game is running
+        # Initialize a boolean for what screen the game is currently on
         self.balloons_game_running = False
-
-        # Initialize a boolean for whether the main menu is running
         self.main_menu_running = False
+        self.pong_game_running = False
 
         # Initialize a boolean for whether the background music is muted
-        self.bg_music_muted = False
+        self.bg_music_muted = False  #! Set to True for testing
 
         # Initialize the font for the game
         self.font_path = f"{CWD}/resources/fonts/joystix monospace.otf"
@@ -104,7 +106,11 @@ class Game:
 
     def init_finger_detection(self):
         # Initialize the HandDetector object
-        self.hand_detector = initialize_hand_detector()
+        self.finger_detector = initialize_hand_detector()
+
+    def init_hand_tracking(self):
+        # Initialize the HandDetector object
+        self.hand_tracking = HandTrackingDynamic()
 
     def init_theme(self):
         # Set the background image
@@ -161,7 +167,7 @@ class Game:
         # Add the "Play Pong" button to the main menu
         self.main_menu.add.button(
             "Play Pong",
-            self.init_balloons_game,
+            self.init_pong_game,
             align=pygame_menu.locals.ALIGN_LEFT,
             margin=(100, 0),
             padding=(0, 0),
@@ -292,6 +298,7 @@ class Game:
 
         self.main_menu_running = True
         self.balloons_game_running = False
+        self.pong_game_running = False
 
         # Set the main menu as the main menu of the game
         self.main_menu.mainloop(self.screen)
@@ -371,16 +378,20 @@ class Game:
         # Set the main menu as not running and the Balloons game as running
         self.main_menu_running = False
         self.balloons_game_running = True
+        self.pong_game_running = False
 
         # Take an initial camera image
         _, self.camera_image = self.cap.read()
+
+        # Initialize the Balloons game screen ratio
+        self.balloon_screen_ratio = 2.5
 
         # Scale the camera image to be half the size of the screen
         self.camera_image = cv2.resize(
             self.camera_image,
             (
-                int(self.user_screen_width // 2.5),
-                int(self.user_screen_height // 2.5),
+                int(self.user_screen_width // self.balloon_screen_ratio),
+                int(self.user_screen_height // self.balloon_screen_ratio),
             ),
         )
 
@@ -401,18 +412,20 @@ class Game:
         top_left_y = (bg_height - image_height) // 2
 
         # Calculate the start and end coordinates for the camera image
-        self.start_x = top_left_x
-        self.start_y = top_left_y + 50
-        self.end_x = top_left_x + image_width
-        self.end_y = top_left_y + image_height + 50
+        self.start_x_cam = top_left_x
+        self.start_y_cam = top_left_y + 50
+        self.end_x_cam = top_left_x + image_width
+        self.end_y_cam = top_left_y + image_height + 50
 
         # Initialize the scale value for x and y
-        self.scale_x = self.user_screen_width / self.balloons_game_bg_image.shape[1]
-        self.scale_y = self.user_screen_height / self.balloons_game_bg_image.shape[0]
+        self.scale_x_cam = self.user_screen_width / self.balloons_game_bg_image.shape[1]
+        self.scale_y_cam = (
+            self.user_screen_height / self.balloons_game_bg_image.shape[0]
+        )
 
         # Initialize the translate value for x and y
-        self.translation_x = int(self.start_x * self.scale_x)
-        self.translation_y = int(self.start_y * self.scale_y)
+        self.translation_x_cam = int(self.start_x_cam * self.scale_x_cam)
+        self.translation_y_cam = int(self.start_y_cam * self.scale_y_cam)
 
         # Initialize the score
         self.balloons_score = 0
@@ -427,14 +440,14 @@ class Game:
         self.max_wave_time = 20
 
         # Initialize the wave wait time
-        self.wave_wait_time = 3
-        self.first_wave_wait_time = 10
+        self.balloon_wave_wait_time = 3
+        self.balloon_first_wave_wait_time = 10
 
         # Initialize the balloons
         self.init_balloons()
 
         # Start the Balloons game timer
-        self.start_balloons_game_wave_timer()
+        self.start_balloons_game_timer()
 
     def init_balloons(self):
         # Initialize the normal balloon image paths
@@ -502,8 +515,8 @@ class Game:
                 # Randomize the balloon rect position
                 balloon_rect.update(
                     (
-                        random.randint(0, self.end_x) + self.start_x + 110,
-                        self.end_y + 100,
+                        random.randint(0, self.end_x_cam) + self.start_x_cam + 110,
+                        self.end_y_cam + 100,
                         100,
                         100,
                     )
@@ -540,7 +553,7 @@ class Game:
                 )
             self.waves_balloons.append(balloons)
 
-    def start_balloons_game_wave_timer(self):
+    def start_balloons_game_timer(self):
 
         if self.balloons_wave > self.max_balloons_waves:
             self.end_balloons_game()
@@ -552,6 +565,15 @@ class Game:
         self.balloon_popping_fill_sounds.play()
 
         while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
+
             # Convert the background image to a Pygame image
             self.balloons_game_bg_image_pygame = pygame.image.frombuffer(
                 self.balloons_game_bg_image.tobytes(),
@@ -580,8 +602,8 @@ class Game:
             )
 
             time_elapsed = int(time.time() - start_time)
-            other_time_remaining = self.wave_wait_time - time_elapsed
-            wave_1_time_remaining = self.first_wave_wait_time - time_elapsed
+            other_time_remaining = self.balloon_wave_wait_time - time_elapsed
+            wave_1_time_remaining = self.balloon_first_wave_wait_time - time_elapsed
 
             time_remaining = (
                 other_time_remaining
@@ -744,13 +766,13 @@ class Game:
             self.camera_image = cv2.resize(
                 self.camera_image,
                 (
-                    int(self.user_screen_width // 2.5),
-                    int(self.user_screen_height // 2.5),
+                    int(self.user_screen_width // self.balloon_screen_ratio),
+                    int(self.user_screen_height // self.balloon_screen_ratio),
                 ),
             )
 
             # Get the right and left hand centers
-            hands_data = detect_hands(self.hand_detector, self.camera_image)
+            hands_data = detect_hands(self.finger_detector, self.camera_image)
             try:
                 fingers_centers_right = hands_data["right_hand"]["fingers_centers"]
             except:
@@ -770,8 +792,8 @@ class Game:
                     continue
 
                 finger_center = (
-                    int(finger_center[0] * self.scale_x) + self.translation_x,
-                    int(finger_center[1] * self.scale_y) + self.translation_y,
+                    int(finger_center[0] * self.scale_x_cam) + self.translation_x_cam,
+                    int(finger_center[1] * self.scale_y_cam) + self.translation_y_cam,
                 )
 
                 fingers_centers_rects.append(
@@ -783,8 +805,8 @@ class Game:
                     continue
 
                 finger_center = (
-                    int(finger_center[0] * self.scale_x) + self.translation_x,
-                    int(finger_center[1] * self.scale_y) + self.translation_y,
+                    int(finger_center[0] * self.scale_x_cam) + self.translation_x_cam,
+                    int(finger_center[1] * self.scale_y_cam) + self.translation_y_cam,
                 )
 
                 fingers_centers_rects.append(
@@ -801,7 +823,7 @@ class Game:
 
             # Add the camera image to the background image
             self.balloons_game_bg_image_edited[
-                self.start_y : self.end_y, self.start_x : self.end_x
+                self.start_y_cam : self.end_y_cam, self.start_x_cam : self.end_x_cam
             ] = self.camera_image
 
             # Convert the background image to a Pygame image
@@ -891,7 +913,7 @@ class Game:
                     continue
 
                 # Remove the balloon if it goes off the screen
-                if balloon["rect"].top <= self.start_y + balloon["rect"].height:
+                if balloon["rect"].top <= self.start_y_cam + balloon["rect"].height:
 
                     # Remove a point if the balloon is not a combo balloon
                     if not balloon["is_combo"]:
@@ -927,7 +949,7 @@ class Game:
             # Check if the balloons are all popped or the wave time is over
             if len(balloons) == 0 or elapsed_time > self.max_wave_time:
                 self.balloons_wave += 1
-                self.start_balloons_game_wave_timer()
+                self.start_balloons_game_timer()
                 break
 
             # Update the display
@@ -1041,3 +1063,624 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.start_main_menu()
+
+    def init_pong_game(self):
+
+        # Set the background music for the main menu
+        mixer.music.load(
+            f"{CWD}/resources/sounds/pong_game_bg_music.ogg"
+        )  # Todo: Add pong game bg music
+        mixer.music.set_volume(0.1)
+
+        # Play the background music
+        if not self.bg_music_muted:
+            mixer.music.play(-1)
+
+        # Initialize the background image for the Pong game
+        self.pong_game_bg_image = cv2.imread(f"{CWD}/resources/images/pong_game_bg.png")
+
+        # Swap the color channels
+        self.pong_game_bg_image = cv2.cvtColor(
+            self.pong_game_bg_image, cv2.COLOR_BGR2RGB
+        )
+
+        # Add alpha channel to the background image
+        self.pong_game_bg_image = cv2.cvtColor(
+            self.pong_game_bg_image, cv2.COLOR_RGB2RGBA
+        )
+
+        # Initialize the ball radius
+        self.ball_raduis = 10
+
+        # Initialize the ball speed
+        self.ball_speed_x = random.choice([-7, 7])
+        self.ball_speed_y = random.choice([-7, 7])
+
+        # Initialize the paddle dimensions
+        self.paddle_width = 10
+        self.paddle_height = 80
+
+        # Initialize the speed
+        self.speed_increment_interval = 7
+        self.speed_increment = 3
+
+        # Initialize the scores
+        self.player1_score = 0
+        self.player2_score = 0
+
+        # Set the main menu as not running and the Pong game as running
+        self.main_menu_running = False
+        self.balloons_game_running = False
+        self.pong_game_running = True
+
+        # Take an initial camera image
+        _, self.camera_image = self.cap.read()
+
+        # Initialize the screen ratio
+        self.pong_screen_ratio = 3.5
+
+        # Scale the camera image to be a third of the size of the screen
+        self.camera_image = cv2.resize(
+            self.camera_image,
+            (
+                int(self.user_screen_width // self.pong_screen_ratio),
+                int(self.user_screen_height // self.pong_screen_ratio),
+            ),
+        )
+
+        # Add rounded corners to the camera image
+        self.camera_image = img_with_rounded_corners(
+            self.camera_image, 30, 2, (0, 0, 0)
+        )
+
+        # Set the entire camera image to be black
+        self.camera_image[:, :] = 0
+
+        # Get the camera image dimensions and the background image dimensions
+        bg_height, bg_width, _ = self.pong_game_bg_image.shape
+        image_height, image_width, _ = self.camera_image.shape
+
+        # Calculate the top-left coordinates for the camera image
+        top_left_x = (bg_width - image_width) // 2
+        top_left_y = (bg_height - image_height) // 2
+
+        # Calculate the start and end coordinates for the camera image
+        self.start_x_cam = top_left_x + 300
+        self.start_y_cam = top_left_y + 100
+        self.end_x_cam = top_left_x + image_width + 300
+        self.end_y_cam = top_left_y + image_height + 100
+
+        # Initialize the scale value for x and y
+        self.scale_x_cam = self.user_screen_width / self.pong_game_bg_image.shape[1]
+        self.scale_y_cam = self.user_screen_height / self.pong_game_bg_image.shape[0]
+
+        # Initialize the translate value for x and y
+        self.translation_x_cam = int(self.start_x_cam * self.scale_x_cam)
+        self.translation_y_cam = int(self.start_y_cam * self.scale_y_cam)
+
+        # Calculate the play field height and width
+        play_field_height, play_field_width = (
+            image_height * self.scale_y_cam,
+            image_width * self.scale_x_cam,
+        )
+
+        self.start_x_play_field = (
+            self.translation_x_cam
+            - play_field_width
+            - ((self.translation_x_cam - (self.user_screen_width // 2)) * 2)
+        )
+        self.start_y_play_field = self.translation_y_cam
+
+        # Initialize a rect for the play field
+        self.play_field_rect = pygame.Rect(
+            self.start_x_play_field,
+            self.start_y_play_field,
+            play_field_width,
+            play_field_height,
+        )
+
+        # Initialize the scale value for x and y
+        self.scale_x_play_field = (
+            self.play_field_rect.width / self.camera_image.shape[1]
+        )
+        self.scale_y_play_field = (
+            self.play_field_rect.height / self.camera_image.shape[0]
+        )
+
+        # Initialize the translate value for x and y
+        self.translation_x_play_field = int(self.start_x_play_field)
+        self.translation_y_play_field = int(self.start_y_play_field)
+
+        # Initialize the ball position
+        self.ball_x = self.play_field_rect.centerx
+        self.ball_y = self.play_field_rect.centery
+
+        # Initialize the paddle positions
+        self.paddle1_x = self.play_field_rect.left + 10
+        self.paddle1_y = self.play_field_rect.centery - self.paddle_height // 2
+
+        # Initialize the paddle positions
+        self.paddle2_x = self.play_field_rect.right - self.paddle_width - 10
+        self.paddle2_y = self.play_field_rect.centery - self.paddle_height // 2
+
+        # Initialize the wave wait time
+        self.pong_first_wave_wait_time = 10
+
+        # Start the Pong game timer
+        # self.start_pong_game_timer() #! Add this line
+        self.start_pong_game()  #! Remove this line
+
+    def start_pong_game_timer(self):
+        # Add a start timer for the game
+        start_time = time.time()
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
+
+            # Convert the background image to a Pygame image
+            self.pong_game_bg_image_pygame = pygame.image.frombuffer(
+                self.pong_game_bg_image.tobytes(),
+                (
+                    self.pong_game_bg_image.shape[1],
+                    self.pong_game_bg_image.shape[0],
+                ),
+                "RGBA",
+            )
+
+            # Resize the background image to fit the screen
+            self.pong_game_bg_image_pygame = pygame.transform.scale(
+                self.pong_game_bg_image_pygame,
+                (self.user_screen_width, self.user_screen_height),
+            )
+
+            # Draw the Pong game background image to the center of the screen
+            self.screen.blit(
+                self.pong_game_bg_image_pygame,
+                (
+                    self.screen.get_width() / 2
+                    - self.pong_game_bg_image_pygame.get_width() / 2,
+                    self.screen.get_height() / 2
+                    - self.pong_game_bg_image_pygame.get_height() / 2,
+                ),
+            )
+
+            time_elapsed = int(time.time() - start_time)
+            time_remaining = self.pong_first_wave_wait_time - time_elapsed
+
+            # Add the timer to the center of the screen
+            font = pygame.font.Font(self.font_path, 40)
+            text = font.render(
+                f"Game starts in {time_remaining} seconds",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 - 200,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Add the game name to the top center of the screen
+            font = pygame.font.Font(self.font_path, 50)
+            text = font.render("Pong Game", True, (255, 255, 255), (0, 0, 0))
+            text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
+            self.screen.blit(text, text_rect)
+
+            # Show instructions
+            font = pygame.font.Font(self.font_path, 30)
+            text = font.render(
+                "Move the paddles with your hands",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            text = font.render(
+                "Each player controls a paddle on their side",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 + 50,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            text = font.render(
+                "Each player gets a point if the ball goes past the other player's paddle",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 + 100,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            text = font.render(
+                "First player to reach 7 points wins",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 + 150,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            text = font.render(
+                "Press ESC anytime to return to the main menu",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(
+                    self.screen.get_width() // 2,
+                    self.screen.get_height() // 2 + 200,
+                )
+            )
+            self.screen.blit(text, text_rect)
+
+            # Update the display
+            pygame.display.flip()
+
+            if time_remaining <= 0:
+                break
+
+        time.sleep(1)
+
+        # Start the Pong game
+        self.start_pong_game()
+
+    def start_pong_game(self):
+
+        round_start_time = time.time()
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
+
+            # Increase the ball speed every interval
+            current_time = time.time()
+            if current_time - round_start_time > self.speed_increment_interval:
+                self.ball_speed_x += (
+                    self.speed_increment
+                    if self.ball_speed_x > 0
+                    else -self.speed_increment
+                )
+                self.ball_speed_y += (
+                    self.speed_increment
+                    if self.ball_speed_y > 0
+                    else -self.speed_increment
+                )
+                round_start_time = current_time
+
+            # Take a camera image
+            _, self.camera_image = self.cap.read()
+
+            # Swap the color channels
+            self.camera_image = cv2.cvtColor(self.camera_image, cv2.COLOR_BGR2RGB)
+
+            # Flip the camera image horizontally
+            self.camera_image = cv2.flip(self.camera_image, 1)
+
+            # Scale the camera image to be a third of the size of the screen
+            self.camera_image = cv2.resize(
+                self.camera_image,
+                (
+                    int(self.user_screen_width // self.pong_screen_ratio),
+                    int(self.user_screen_height // self.pong_screen_ratio),
+                ),
+            )
+
+            is_left_hand = False
+            is_right_hand = False
+
+            # Get the hands data
+            self.camera_image = self.hand_tracking.findFingers(self.camera_image)
+            hands_data = self.hand_tracking.findPosition(
+                self.camera_image, self.camera_image.shape[1]
+            )
+
+            lmsList1, _, center1, side1 = hands_data[0]
+            lmsList2, _, center2, side2 = hands_data[1]
+
+            # Move the paddles based on the hands data
+            if side1 == "left" and len(lmsList1) != 0:
+                is_left_hand = True
+                _, center1_y = center1
+                center1_y = (
+                    int(center1_y * self.scale_y_play_field)
+                    + self.translation_y_play_field
+                )
+
+                self.paddle1_y = center1_y - self.paddle_height // 2
+
+                if self.paddle1_y < self.play_field_rect.height:
+                    self.paddle1_y = self.play_field_rect.height + 10
+                elif self.paddle1_y > self.play_field_rect.bottom - 75:
+                    self.paddle1_y = (
+                        self.play_field_rect.bottom - self.paddle_height - 10 - 10
+                    )
+
+            if side2 == "right" and len(lmsList2) != 0:
+                is_right_hand = True
+                _, center2_y = center2
+                center2_y = (
+                    int(center2_y * self.scale_y_play_field)
+                    + self.translation_y_play_field
+                )
+                self.paddle2_y = center2_y - self.paddle_height // 2
+
+                if self.paddle2_y < self.play_field_rect.height:
+                    self.paddle2_y = self.play_field_rect.height + 10
+                elif self.paddle2_y > self.play_field_rect.bottom - 75:
+                    self.paddle2_y = (
+                        self.play_field_rect.bottom - self.paddle_height - 10 - 10
+                    )
+
+            # Change the ball speed based on the ball direction
+            self.ball_x += self.ball_speed_x
+            self.ball_y += self.ball_speed_y
+
+            # Check if the ball hits the top or bottom of the screen
+            if self.ball_y <= self.play_field_rect.height + self.ball_raduis:
+                self.ball_speed_y = -self.ball_speed_y
+            elif self.ball_y >= self.play_field_rect.bottom - self.ball_raduis:
+                self.ball_speed_y = -self.ball_speed_y
+
+            # Convert the ball poistion to a pygame rect
+            ball_rect = pygame.Rect(
+                self.ball_x, self.ball_y, self.ball_raduis, self.ball_raduis
+            )
+
+            # Convert the paddle poistion to a pygame rect
+            paddle_rect1 = pygame.Rect(
+                self.paddle1_x, self.paddle1_y, self.paddle_width, self.paddle_height
+            )
+            paddle_rect2 = pygame.Rect(
+                self.paddle2_x, self.paddle2_y, self.paddle_width, self.paddle_height
+            )
+
+            # Check if the ball hits the paddle
+            if paddle_rect1.colliderect(ball_rect):
+                self.ball_speed_x = -self.ball_speed_x
+                # Move the ball to the right of the paddle
+                self.ball_x = self.paddle1_x + self.paddle_width + self.ball_raduis
+            elif paddle_rect2.colliderect(ball_rect):
+                self.ball_speed_x = -self.ball_speed_x
+                # Move the ball to the left of the paddle
+                self.ball_x = self.paddle2_x - self.ball_raduis
+
+            # Check if the ball hits the left or right of the screen
+            if self.ball_x <= self.play_field_rect.left + self.ball_raduis:
+                self.player2_score += 1
+                self.ball_x = self.play_field_rect.centerx
+                self.ball_y = self.play_field_rect.centery
+                self.ball_speed_x = random.choice([-7, 7])
+                self.ball_speed_y = random.choice([-7, 7])
+                round_start_time = time.time()
+
+            elif self.ball_x >= self.play_field_rect.right - self.ball_raduis:
+                self.player1_score += 1
+                self.ball_x = self.play_field_rect.centerx
+                self.ball_y = self.play_field_rect.centery
+                self.ball_speed_x = random.choice([-7, 7])
+                self.ball_speed_y = random.choice([-7, 7])
+                round_start_time = time.time()
+
+            # Add rounded corners to the camera image
+            self.camera_image = img_with_rounded_corners(
+                self.camera_image, 30, 2, (0, 0, 0)
+            )
+
+            # Initialize the edited background image
+            self.pong_game_bg_image_edited = self.pong_game_bg_image.copy()
+
+            # Add the camera image to the background image
+            self.pong_game_bg_image_edited[
+                self.start_y_cam : self.end_y_cam, self.start_x_cam : self.end_x_cam
+            ] = self.camera_image
+
+            # Convert the background image to a Pygame image
+            self.pong_game_bg_image_pygame = pygame.image.frombuffer(
+                self.pong_game_bg_image_edited.tobytes(),
+                (
+                    self.pong_game_bg_image.shape[1],
+                    self.pong_game_bg_image.shape[0],
+                ),
+                "RGBA",
+            )
+
+            # Resize the background image to fit the screen
+            self.pong_game_bg_image_pygame = pygame.transform.scale(
+                self.pong_game_bg_image_pygame,
+                (self.user_screen_width, self.user_screen_height),
+            )
+
+            # Draw the Pong game background image to the center of the screen
+            self.screen.blit(
+                self.pong_game_bg_image_pygame,
+                (
+                    self.screen.get_width() / 2
+                    - self.pong_game_bg_image_pygame.get_width() / 2,
+                    self.screen.get_height() / 2
+                    - self.pong_game_bg_image_pygame.get_height() / 2,
+                ),
+            )
+
+            # Draw the play field
+            [
+                pygame.draw.rect(
+                    self.screen, color, self.play_field_rect, width, border_radius=30
+                )
+                for color, width in [((2, 48, 32), 0), ((255, 255, 255), 5)]
+            ]
+
+            # Draw the ball
+            pygame.draw.circle(
+                self.screen,
+                (255, 255, 255),
+                (self.ball_x, self.ball_y),
+                self.ball_raduis,
+            )
+
+            # Draw the paddles
+            pygame.draw.rect(
+                self.screen,
+                (255, 255, 255),
+                (self.paddle1_x, self.paddle1_y, self.paddle_width, self.paddle_height),
+            )
+            pygame.draw.rect(
+                self.screen,
+                (255, 255, 255),
+                (self.paddle2_x, self.paddle2_y, self.paddle_width, self.paddle_height),
+            )
+
+            # Draw the net
+            for i in range(
+                self.start_y_play_field,
+                self.start_y_play_field + self.play_field_rect.height,
+                20,
+            ):
+                pygame.draw.rect(
+                    self.screen,
+                    (255, 255, 255),
+                    (
+                        self.play_field_rect.width // 2 + self.start_x_play_field,
+                        i,
+                        4,
+                        8,
+                    ),
+                )
+
+            # Add game name to the top center of the screen
+            font = pygame.font.Font(self.font_path, 50)
+            text = font.render("Pong Game", True, (255, 255, 255), (0, 0, 0))
+            text_rect = text.get_rect(center=(self.screen.get_width() // 2, 150))
+            self.screen.blit(text, text_rect)
+
+            # Add player scores to the top left and right of the play field
+            # Todo: Add player names
+            font = pygame.font.Font(self.font_path, 30)
+            text = font.render(
+                f"Player 1: {self.player1_score}",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            self.screen.blit(
+                text,
+                (
+                    self.start_x_play_field + 20,
+                    self.start_y_play_field - text.get_height() - 20,
+                ),
+            )
+
+            text = font.render(
+                f"Player 2: {self.player2_score}",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            self.screen.blit(
+                text,
+                (
+                    self.start_x_play_field
+                    + self.play_field_rect.width
+                    - text.get_width()
+                    - 20,
+                    self.start_y_play_field - text.get_height() - 20,
+                ),
+            )
+
+            # Add hands detected text to the left and right of the camera image
+            font = pygame.font.Font(self.font_path, 30)
+            if is_left_hand:
+                text = font.render(
+                    "Player 1",
+                    True,
+                    (0, 255, 0),
+                    (0, 0, 0),
+                )
+            else:
+                text = font.render(
+                    "Player 1",
+                    True,
+                    (255, 0, 0),
+                    (0, 0, 0),
+                )
+            self.screen.blit(
+                text,
+                (
+                    (self.translation_x_cam + 20),
+                    self.start_y_play_field - text.get_height() - 20,
+                ),
+            )
+
+            if is_right_hand:
+                text = font.render(
+                    "Player 2",
+                    True,
+                    (0, 255, 0),
+                    (0, 0, 0),
+                )
+            else:
+                text = font.render(
+                    "Player 2",
+                    True,
+                    (255, 0, 0),
+                    (0, 0, 0),
+                )
+            self.screen.blit(
+                text,
+                (
+                    self.translation_x_cam
+                    + self.play_field_rect.width
+                    - text.get_width()
+                    - 20,
+                    self.start_y_play_field - text.get_height() - 20,
+                ),
+            )
+
+            # Update the display
+            pygame.display.flip()
+
+            # Update the clock and delta time
+            self.dt = self.clock.tick(30) / 1000
+
+    def end_pong_game(self):
+        pass
