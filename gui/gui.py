@@ -72,7 +72,7 @@ class Game:
         self.credits_running = False
 
         # Initialize a boolean for whether the background music is muted
-        self.bg_music_muted = False  #! Set to True for testing
+        self.bg_music_muted = False
 
         # Initialize the font for the game
         self.font_path = f"{CWD}/resources/fonts/joystix monospace.otf"
@@ -1358,8 +1358,7 @@ class Game:
         self.ball_drop_sound.set_volume(0.2)
 
         # Initialize the max score
-        # self.max_score = 7
-        self.max_score = 1  #!
+        self.max_score = 7
 
         # Start the Pong game timer
         self.start_pong_game_timer()
