@@ -9,12 +9,16 @@ import cv2
 import random
 import time
 import os
+import json
+import sqlite3  # Add SQLite database support
+from gui.settings_config import DEFAULT_SETTINGS, SCREEN_RESOLUTIONS, DIFFICULTY_SETTINGS
 
+from models.mediapipe_hand_tracking import HandTrackingDynamic
+from models.cvzone_hand_detection import initialize_hand_detector, detect_hands
 from screeninfo import get_monitors
 
-from .utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
+from gui.utils import img_with_rounded_corners, random_bool_by_chance, biased_random_int
 
-from models import initialize_hand_detector, detect_hands, HandTrackingDynamic
 
 # Get the current working directory
 CWD = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +31,13 @@ class Game:
         self.initial_screen_width = 1280  # The default screen width
         self.initial_screen_height = 720  # The default screen height
         self.user_camera_number = 0  # The camera number to use for the game
-
+        
+        # Initialize game settings
+        self.load_settings()
+        
+        # Setup database for users
+        self.setup_database()
+        
         # Get the user's screen resolution
         user_screen = get_monitors()[self.user_screen_number]
         self.user_screen_width = user_screen.width
@@ -72,7 +82,7 @@ class Game:
         self.credits_running = False
 
         # Initialize a boolean for whether the background music is muted
-        self.bg_music_muted = False
+        self.bg_music_muted = False  #! Set to True for testing
 
         # Initialize the font for the game
         self.font_path = f"{CWD}/resources/fonts/joystix monospace.otf"
@@ -87,13 +97,237 @@ class Game:
         # Start the main menu
         self.start_main_menu()
 
+    def load_settings(self):
+        """Load game settings from file or use defaults"""
+        settings_path = os.path.join(CWD, "..", "settings.json")
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, 'r') as f:
+                    self.settings = json.load(f)
+                # Fill in any missing settings with defaults
+                for key, value in DEFAULT_SETTINGS.items():
+                    if key not in self.settings:
+                        self.settings[key] = value
+            except (json.JSONDecodeError, IOError):
+                # If there's an error loading, use defaults
+                self.settings = DEFAULT_SETTINGS.copy()
+        else:
+            # If no settings file exists, use defaults
+            self.settings = DEFAULT_SETTINGS.copy()
+        
+        # Apply settings
+        self.apply_settings()
+            
+    def save_settings(self):
+        """Save current settings to file"""
+        settings_path = os.path.join(CWD, "..", "settings.json")
+        try:
+            with open(settings_path, 'w') as f:
+                json.dump(self.settings, f, indent=4)
+        except IOError:
+            print("Warning: Could not save settings to file.")
+            
+    def apply_settings(self):
+        """Apply the current settings to the game"""
+        # Apply volume settings - safely check if mixer is initialized
+        if pygame.mixer.get_init():
+            mixer.music.set_volume(self.settings["music_volume"] / 100)
+        
+        # Apply screen settings
+        if self.settings["screen_width"] != self.initial_screen_width or \
+           self.settings["screen_height"] != self.initial_screen_height:
+            self.initial_screen_width = self.settings["screen_width"]
+            self.initial_screen_height = self.settings["screen_height"]
+            
+        # Apply camera settings
+        self.user_camera_number = self.settings["camera_number"]
+        
+        # Apply difficulty settings
+        self.difficulty = self.settings["difficulty"]
+
+    def setup_database(self):
+        """Set up SQLite database for user management"""
+        # Create a database in the same directory as the script
+        db_path = os.path.join(CWD, "..", "lmbox_users.db")
+        self.conn = sqlite3.connect(db_path)
+        self.cursor = self.conn.cursor()
+        
+        # Create users table if it doesn't exist
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        self.conn.commit()
+        
+        # Check if there are any users, add a default one if empty
+        self.cursor.execute("SELECT COUNT(*) FROM users")
+        if self.cursor.fetchone()[0] == 0:
+            self.cursor.execute("INSERT INTO users (name) VALUES (?)", ("Player 1",))
+            self.conn.commit()
+            
+    def add_user(self, name):
+        """Add a new user to the database"""
+        self.cursor.execute("INSERT INTO users (name) VALUES (?)", (name,))
+        self.conn.commit()
+        
+    def get_users(self):
+        """Get all users from the database"""
+        self.cursor.execute("SELECT id, name FROM users")
+        return self.cursor.fetchall()
+    
+    def delete_user(self, user_id):
+        """Delete a user from the database"""
+        self.cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        self.conn.commit()
+        
+    def init_users_database(self):
+        """Initialize the users database screen"""
+        # Set game state
+        self.main_menu_running = False
+        self.balloons_game_running = False
+        self.pong_game_running = False
+        self.dino_game_running = False
+        self.credits_running = False
+        self.users_screen_running = True
+        
+        # Create a submenu for the users database
+        self.users_menu = pygame_menu.Menu(
+            "Users",
+            self.user_screen_width,
+            self.user_screen_height,
+            theme=self.theme,
+            columns=1,
+            rows=8,
+        )
+        
+        # Get all users
+        users = self.get_users()
+        
+        # Add title
+        title_label = self.users_menu.add.label(
+            "Users",
+            align=pygame_menu.locals.ALIGN_CENTER,
+            font_size=50,
+            margin=(0, 50),
+        )
+        title_label.set_max_height(70)
+        
+        # Add all users to the menu
+        users_label = self.users_menu.add.label(
+            "Current Users:",
+            align=pygame_menu.locals.ALIGN_CENTER,
+            font_size=30,
+            margin=(0, 20),
+        )
+        users_label.set_max_height(50)
+        
+        # Display each user with a delete button
+        for user_id, name in users:
+            row_frame = self.users_menu.add.frame_h(width=700, height=80, margin=(0, 10))
+            # Enable relaxed mode to avoid size exceptions
+            row_frame._relax = True
+            
+            user_label = self.users_menu.add.label(
+                f"{name}",
+                align=pygame_menu.locals.ALIGN_LEFT,
+                font_size=25
+            )
+            user_label.set_max_height(70)
+            row_frame.pack(
+                user_label, 
+                align=pygame_menu.locals.ALIGN_LEFT
+            )
+            
+            delete_button = self.users_menu.add.button(
+                "Delete",
+                lambda uid=user_id: self.delete_user_and_refresh(uid),
+                align=pygame_menu.locals.ALIGN_RIGHT,
+                font_size=20,
+                background_color=(200, 50, 50),
+                cursor=pygame.SYSTEM_CURSOR_HAND,
+            )
+            delete_button.set_max_height(70)
+            row_frame.pack(
+                delete_button,
+                align=pygame_menu.locals.ALIGN_RIGHT
+            )
+        
+        # Add a separator
+        self.users_menu.add.vertical_margin(30)
+        
+        # Add new user input
+        self.user_name_input = self.users_menu.add.text_input(
+            "New User Name: ",
+            default="",
+            align=pygame_menu.locals.ALIGN_CENTER,
+            font_size=25,
+            textinput_id="user_name",
+            input_underline_len=20,  # Make underline longer
+            maxchar=30,  # Increase max characters
+            maxwidth=500,  # Increase max width
+        )
+        
+        # Add button to add a new user
+        add_user_button = self.users_menu.add.button(
+            "Add User",
+            self.add_user_and_refresh,
+            align=pygame_menu.locals.ALIGN_CENTER,
+            margin=(0, 20),
+            font_size=30,
+            background_color=(50, 200, 50),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
+        
+        # Set max height for the button
+        add_user_button.set_max_height(50)
+        
+        # Add vertical space
+        self.users_menu.add.vertical_margin(50)
+        
+        # Add a back button to return to the main menu
+        back_button = self.users_menu.add.button(
+            "Back to Main Menu",
+            self.start_main_menu,
+            align=pygame_menu.locals.ALIGN_CENTER,
+            font_size=30,
+            background_color=(0, 0, 0),
+            cursor=pygame.SYSTEM_CURSOR_HAND,
+        )
+        
+        # Set max height for the button
+        back_button.set_max_height(50)
+        
+        # Start the users menu
+        self.users_menu.mainloop(self.screen, fps_limit=60)
+        
+    def delete_user_and_refresh(self, user_id):
+        """Delete a user and refresh the users menu"""
+        self.delete_user(user_id)
+        self.init_users_database()
+        
+    def add_user_and_refresh(self):
+        """Add a new user and refresh the users menu"""
+        user_name = self.user_name_input.get_value()
+        if user_name and len(user_name) > 0:
+            self.add_user(user_name)
+            self.init_users_database()
+
     def init_camera(self):
         # Initialize the camera
         self.cap = cv2.VideoCapture(self.user_camera_number)
 
         # Check if the camera is opened
         if not self.cap.isOpened():
-            raise Exception("Could not open the camera.")
+            print("Trying alternate camera index 1")
+            self.cap = cv2.VideoCapture(1)
+            if not self.cap.isOpened():
+                print("Trying alternate camera index 2")
+                self.cap = cv2.VideoCapture(2)
+            if not self.cap.isOpened():
+                print("WARNING: Could not open any camera. Some features may not work properly.")
 
         # Set the camera resolution
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.user_screen_width)
@@ -180,10 +414,10 @@ class Game:
         # Add vertical space
         self.main_menu.add.vertical_margin(50)
 
-        # Add the "Play Runner" button to the main menu
+        # Add the "Dino" button to the main menu
         self.main_menu.add.button(
-            "Play Runner",
-            self.init_balloons_game,
+            "Dino",
+            self.init_dino_game,
             align=pygame_menu.locals.ALIGN_LEFT,
             margin=(100, 0),
             padding=(0, 0),
@@ -194,6 +428,8 @@ class Game:
             ),
             cursor=pygame.SYSTEM_CURSOR_HAND,
         )
+
+        
 
         # Add vertical space
         self.main_menu.add.vertical_margin(50)
@@ -216,10 +452,10 @@ class Game:
         # Add vertical space
         self.main_menu.add.vertical_margin(250)
 
-        # Add the "Users" button to the main menu
+        # Add the "Database" button to the main menu (renamed from Users)
         self.main_menu.add.button(
             "Users",
-            pygame_menu.events.EXIT,
+            self.init_users_database,
             align=pygame_menu.locals.ALIGN_RIGHT,
             margin=(-110, 0),
             padding=(0, 0),
@@ -255,7 +491,7 @@ class Game:
         # Add the "Settings" button to the main menu
         self.main_menu.add.button(
             "Settings",
-            pygame_menu.events.EXIT,
+            self.init_settings,
             align=pygame_menu.locals.ALIGN_RIGHT,
             margin=(-110, 0),
             padding=(0, 0),
@@ -297,6 +533,7 @@ class Game:
         self.main_menu_running = True
         self.balloons_game_running = False
         self.pong_game_running = False
+        self.dino_game_running = False
         self.credits_running = False
 
         # Set the main menu as the main menu of the game
@@ -1358,7 +1595,8 @@ class Game:
         self.ball_drop_sound.set_volume(0.2)
 
         # Initialize the max score
-        self.max_score = 7
+        # self.max_score = 7
+        self.max_score = 1  #!
 
         # Start the Pong game timer
         self.start_pong_game_timer()
@@ -1945,3 +2183,235 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.start_main_menu()
+
+    def init_dino_game(self):
+        # Set game state
+        self.main_menu_running = False
+        self.balloons_game_running = False
+        self.pong_game_running = False
+        self.dino_game_running = False
+        self.credits_running = False
+        self.dino_game_running = True
+        
+        # Set the background music for the Dino game
+        mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")  # Replace with dino game music if available
+        mixer.music.set_volume(0.1)
+        
+        # Play the background music
+        if not self.bg_music_muted:
+            mixer.music.play(-1)
+            
+        # Load the ball drop sound if it's not already loaded
+        if not hasattr(self, 'ball_drop_sound'):
+            self.ball_drop_sound = mixer.Sound(f"{CWD}/resources/sounds/ball-dropping.ogg")
+            self.ball_drop_sound.set_volume(0.2)
+            
+        # Initialize the background image for the game (using Pong's background for consistency)
+        if not hasattr(self, 'pong_game_bg_image'):
+            self.pong_game_bg_image = cv2.imread(f"{CWD}/resources/images/pong_game_bg.png")
+            # Swap the color channels
+            self.pong_game_bg_image = cv2.cvtColor(self.pong_game_bg_image, cv2.COLOR_BGR2RGB)
+            # Add alpha channel to the background image
+            self.pong_game_bg_image = cv2.cvtColor(self.pong_game_bg_image, cv2.COLOR_RGB2RGBA)
+            
+        # Initialize the wave wait time
+        self.pong_first_wave_wait_time = 5  # Using 5 seconds for dino game timer (shorter than Pong's 10 seconds)
+            
+        # Import dino game module
+        from .dino_game import run_dino_game
+        print("Starting Dino game...")
+        print("Use UP arrow/SPACE to jump and DOWN arrow to duck")
+        
+        # Create a fullscreen window for the game
+        self.original_width = self.screen.get_width()
+        self.original_height = self.screen.get_height()
+        
+        # Get current monitor resolution
+        from screeninfo import get_monitors
+        try:
+            user_screen = get_monitors()[self.user_screen_number]
+            screen_width = user_screen.width
+            screen_height = user_screen.height
+            print(f"Setting up fullscreen Dino game: {screen_width}x{screen_height}")
+        except Exception as e:
+            print(f"Error getting monitor info: {e}, using default resolution")
+            screen_width = 1920
+            screen_height = 1080
+            
+        # Center the game window on the display
+        import os
+        display_width, display_height = self.user_screen_width, self.user_screen_height
+
+        # Calculate the position to center the window
+        x_position = (display_width - screen_width) // 2
+        y_position = (display_height - screen_height) // 2
+
+        # First hide any previous pygame windows
+        pygame.display.quit()
+        
+        # Initialize display system with SDL variables for positioning
+        pygame.display.init()
+        
+        # Set environment variables for window position
+        # NOTE: SDL_VIDEO_CENTERED is now set right before creating the wide_screen below
+        
+        # Create a borderless window with your current desktop resolution
+        # This will make it fill the screen but still be centered properly
+        from screeninfo import get_monitors
+        user_screen = get_monitors()[self.user_screen_number]
+        screen_width, screen_height = user_screen.width, user_screen.height
+        
+        # Set environment variable to ensure proper centering
+        os.environ['SDL_VIDEO_CENTERED'] = '1'
+        
+        self.wide_screen = pygame.display.set_mode(
+            (screen_width, screen_height),  # Use full screen resolution
+            pygame.NOFRAME  # Borderless window that fills the screen
+        )
+        
+        # Start the Dino game timer
+        self.start_dino_game_timer()
+        
+    def start_dino_game_timer(self):
+        # Add a start timer for the game, matching Pong's style
+        start_time = time.time()
+
+        # Play the countdown sound (using ball drop sound like in Pong)
+        self.ball_drop_sound.play()
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.start_main_menu()
+                        return
+
+            # Load and display the same background as Pong
+            # Convert the background image to a Pygame image
+            self.pong_game_bg_image_pygame = pygame.image.frombuffer(
+                self.pong_game_bg_image.tobytes(),
+                (
+                    self.pong_game_bg_image.shape[1],
+                    self.pong_game_bg_image.shape[0],
+                ),
+                "RGBA",
+            )
+
+            # Resize the background image to fit the screen
+            self.pong_game_bg_image_pygame = pygame.transform.scale(
+                self.pong_game_bg_image_pygame,
+                (self.wide_screen.get_width(), self.wide_screen.get_height()),
+            )
+
+            # Position the Dino game screen on the display
+            # The game area is centered horizontally and vertically on the screen
+            self.wide_screen.blit(
+                self.pong_game_bg_image_pygame,  # Background image for the game
+                (
+                    self.wide_screen.get_width() / 2
+                    - self.pong_game_bg_image_pygame.get_width() / 2,  # Center horizontally
+                    self.wide_screen.get_height() / 2
+                    - self.pong_game_bg_image_pygame.get_height() / 2,  # Center vertically
+                ),
+            )
+
+            time_elapsed = int(time.time() - start_time)
+            time_remaining = self.pong_first_wave_wait_time - time_elapsed
+
+            # Add the timer to the center of the screen in Pong style
+            font = pygame.font.Font(self.font_path, 40)
+            text = font.render(
+                f"Game starts in {time_remaining} seconds",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            text_rect = text.get_rect(
+                center=(self.wide_screen.get_width() / 2, self.wide_screen.get_height() / 2)
+            )
+            self.wide_screen.blit(text, text_rect)
+
+            # Create a smaller text object for the instructions
+            instruction_font = pygame.font.Font(self.font_path, 20)
+            instruction_text = instruction_font.render(
+                "Use your head to control the dinosaur. Move UP to jump, DOWN to duck.",
+                True,
+                (255, 255, 255),
+                (0, 0, 0),
+            )
+            instruction_text_rect = instruction_text.get_rect(
+                center=(
+                    self.wide_screen.get_width() / 2,
+                    self.wide_screen.get_height() / 2 + 100,
+                )
+            )
+            self.wide_screen.blit(instruction_text, instruction_text_rect)
+
+            # Update the display
+            pygame.display.update()
+
+            # If the timer is done, break out of the loop and start the game
+            if time_remaining <= 0:
+                break
+
+        # Transition to the main game
+        self.start_dino_game()
+        
+    def start_dino_game(self):
+        """Start the dinosaur game"""
+        # Parse camera from other functions
+        existing_cap = self.cap
+
+        try:
+            import numpy as np
+            
+            # Note: We're NOT resetting the display here because we've already
+            # created self.wide_screen in init_dino_game
+            # Just use the existing display that was set up
+
+            # Import the dino game and run it
+            from .dino_game import run_dino_game
+
+            # Run the game with the existing screen, camera and background image
+            print("Running Dino game with existing display...")
+            run_dino_game(
+                screen=self.wide_screen,
+                existing_cap=existing_cap,
+                bg_image=self.pong_game_bg_image
+            )
+
+            # Reset to original screen size when returning to menu
+            print("Returning to main menu...")
+            pygame.display.quit()
+            pygame.display.init()
+            # Ensure fullscreen is properly set when returning from the game
+            self.screen = pygame.display.set_mode(
+                (self.user_screen_width, self.user_screen_height),
+                pygame.FULLSCREEN,
+                display=self.user_screen_number
+            )
+            
+            # Start the main menu again
+            self.start_main_menu()
+            
+        except Exception as e:
+            print(f"Error starting dino game: {e}")
+            # Make sure we return to the main menu even if there's an error
+            self.start_main_menu()
+    
+    def init_subway_game(self):
+        # Placeholder for Subway Game initialization
+        print("Subway Game started (stub)")
+        # Optionally, return to main menu for now
+        self.start_main_menu()
+
+    def init_settings(self):
+        """Quick placeholder settings menu"""
+        # Just go back to main menu with a message
+        print("Settings menu clicked - this will be implemented later")
+        self.start_main_menu()
+# All old settings code removed
