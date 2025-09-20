@@ -34,21 +34,21 @@ Ensure you have Python 3.8 or later installed.
 
 ### Setup
 
-1. Clone the repository:
+1. Clone the repository (GitHub):
     ```sh
     git clone https://github.com/Samspei01/LM_BOX_5.git
     cd LM_BOX_5
     ```
-    or
+2. Or Clone the repository (GitLab):
     ```sh
     git clone https://gitlab.com/Momad-Y/lm-box-5.git
     cd lm-box-5
     ```
-2. Install dependencies:
+3. Install dependencies:
     ```sh
     pip install -r requirements.txt
     ```
-3. Run the application:
+4. Run the application:
     ```sh
     python main.py
     ```
@@ -85,7 +85,7 @@ LM Box 5 uses the following computer vision technologies:
     - **Landmark Inference**: Infers 21 3D landmarks per hand, including finger tips, joints, and palm points.
     - **Gesture Mapping**: Translates finger positions and gestures into game controls.
 
-![labeled hand landmarks image](images\hand_landmarks.png)
+![labeled hand landmarks image](./images/hand_landmarks.png)
 
 2. **Mediapipe Pose**:
 
@@ -96,7 +96,7 @@ LM Box 5 uses the following computer vision technologies:
         - **Detector** finds the person/pose ROI.
         - **Tracker** predicts landmarks and segmentation from cropped frames. Detection re-runs only if tracking fails.
 
-![labeled pose landmarks image](images\pose_landmarks.png)
+![labeled pose landmarks image](./images/pose_landmarks.png)
 
 ### Application in LM Box 5:
 
@@ -109,16 +109,16 @@ LM Box 5 uses the following computer vision technologies:
 Here are some screenshots showcasing the different games and features of LM Box 5:
 
 -   _Main menu interface with game selection options_
-    ![Main Menu](images\main_menu.png)
+    ![Main Menu](./images/main_menu.png)
 
 -   _Balloons game with colorful balloons to pop using hand gestures_
-    ![Balloons Game](images\balloons_game.png)
+    ![Balloons Game](./images/balloons_game.png)
 
 -   _Classic Pong game controlled via hand tracking_
-    ![Pong Game](images\pong_game.png)
+    ![Pong Game](./images/pong_game.png)
 
 -   _Dinosaur runner game with pose detection controls_
-    ![Dinosaur Game](images\dino_game.png)
+    ![Dinosaur Game](./images/dino_game.png)
 
 ## References
 
