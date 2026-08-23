@@ -8,7 +8,7 @@ LM Box 5 is a retro gaming project that replaces traditional controllers with co
 
 - **Balloons**: Use finger movements to pop balloons before they vanish.
 - **Pong**: Control paddles via hand tracking to bounce a ball back and forth.
-- **Dinosaur Runner**: Jump and duck using body movements to avoid obstacles.
+- **Runner**: Jump and duck using body movements to avoid obstacles.
 
 The project leverages real-time hand and body tracking using computer vision modules for an intuitive gaming experience.
 
@@ -24,7 +24,17 @@ The project leverages real-time hand and body tracking using computer vision mod
 
 1. **Balloons**: Pop colorful balloons using finger movements before they float away.
 2. **Pong**: Classic two-player paddle game controlled by hand tracking.
-3. **Dinosaur Runner**: A T-Rex runner clone controlled by body movements.
+3. **Runner**: An endless runner controlled by body movements.
+
+## System Requirements
+
+- **Python**: 3.8 or later.
+- **Webcam**: required for **Balloons** and **Pong**, both played entirely
+  with hand tracking. **Runner** works without one too - it falls back to
+  the keyboard (Up/Space to jump, Down to duck) if no camera is found.
+- **CPU**: the hand/pose tracking (Mediapipe) runs on the CPU every frame,
+  so a reasonably modern multi-core CPU makes for noticeably smoother
+  tracking than an older or lower-power one. No GPU is required.
 
 ## Installation
 
@@ -70,7 +80,7 @@ LM Box 5 uses the following computer vision technologies:
 
 1. **Mediapipe Hands** module: A high-fidelity hand and finger tracking solution that employs machine learning to infer 21 3D landmarks of a hand from just a single frame. This powers the Balloons and Pong games.
 
-2. **Mediapipe Pose** module: Used in the Dinosaur game to track body position and movements, enabling jump and duck controls.
+2. **Mediapipe Pose** module: Used in the Runner game to track body position and movements, enabling jump and duck controls.
 
 ### How It Works
 
@@ -94,7 +104,7 @@ LM Box 5 uses the following computer vision technologies:
 
 - In **Balloons**, finger movements are tracked to pop on-screen balloons.
 - In **Pong**, hand gestures control players' paddle movement.
-- In **Dinosaur Runner**, body pose detection enables jumping and ducking movements.
+- In **Runner**, body pose detection enables jumping and ducking movements.
 
 ## Screenshots
 
@@ -109,8 +119,8 @@ Here are some screenshots showcasing the different games and features of LM Box 
 - _Classic Pong game controlled via hand tracking_
   ![Pong Game](./images/pong_game.png)
 
-- _Dinosaur runner game with pose detection controls_
-  ![Dinosaur Game](./images/dino_game.png)
+- _Runner game with pose detection controls_
+  ![Runner Game](./images/runner_game.png)
 
 ## References
 
