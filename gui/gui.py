@@ -329,7 +329,7 @@ class Game:
         if not self.settings.get("show_fps"):
             return
 
-        font = pygame.font.Font(self.font_path, 20)
+        font = ui.font(self.font_path, 20)
         text = font.render(
             f"FPS:{int(self.clock.get_fps())}", True, (255, 255, 255), (0, 0, 0)
         )
@@ -624,7 +624,7 @@ class Game:
         """Draw a centred prompt on the game canvas."""
         self.blit_background(self.get_prompt_background())
 
-        font = pygame.font.Font(self.font_path, 40)
+        font = ui.font(self.font_path, 40)
         text = font.render(title, True, (255, 255, 255), (0, 0, 0))
         self.screen.blit(
             text,
@@ -634,7 +634,7 @@ class Game:
             ),
         )
 
-        font = pygame.font.Font(self.font_path, 24)
+        font = ui.font(self.font_path, 24)
         for line_number, line in enumerate(lines):
             hint = font.render(line, True, (255, 255, 255), (0, 0, 0))
             self.screen.blit(
@@ -932,7 +932,7 @@ class Game:
 
             # The typed name, with a blinking caret
             caret = "_" if (pygame.time.get_ticks() // 400) % 2 == 0 else " "
-            font = pygame.font.Font(self.font_path, 32)
+            font = ui.font(self.font_path, 32)
             typed = font.render(text + caret, True, (255, 255, 255), (0, 0, 0))
             self.screen.blit(
                 typed,
@@ -1025,7 +1025,7 @@ class Game:
 
             self.blit_background(self.get_prompt_background())
 
-            font = pygame.font.Font(self.font_path, 40)
+            font = ui.font(self.font_path, 40)
             text = font.render(
                 f"Photo for {user_name}", True, (255, 255, 255), (0, 0, 0)
             )
@@ -1044,7 +1044,7 @@ class Game:
                 3,
             )
 
-            font = pygame.font.Font(self.font_path, 24)
+            font = ui.font(self.font_path, 24)
             enough_subject = cutout_coverage(cutout) >= MIN_COVERAGE
             if no_subject and not enough_subject:
                 status = "Nobody detected - step into view"
@@ -1092,6 +1092,14 @@ class Game:
 
         # Set the camera frame rate
         self.cap.set(cv2.CAP_PROP_FPS, 30)
+
+        # Ask the driver to keep at most one frame queued. Without this,
+        # a backend that buffers internally can hand back a stale queued
+        # frame instead of blocking for the true latest one whenever
+        # per-frame CPU work runs slower than the camera's native frame
+        # interval - not every backend honors this, but it's a no-op where
+        # it isn't, not a regression.
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         # Initialize the camera image
         self.camera_image = None
@@ -1225,13 +1233,12 @@ class Game:
 
         The games position it in their background image's 1280x720 space, so
         it has to be scaled up to the canvas the same way the background is.
+        Computed once at round start (init_balloons_game/init_pong_game) and
+        cached as self._camera_feed_rect, since none of its inputs
+        (start_x_cam, scale_x_cam, etc.) change mid-round - this used to
+        redo the same arithmetic and Rect allocation on every call instead.
         """
-        return pygame.Rect(
-            int(self.start_x_cam * self.scale_x_cam),
-            int(self.start_y_cam * self.scale_y_cam),
-            int((self.end_x_cam - self.start_x_cam) * self.scale_x_cam),
-            int((self.end_y_cam - self.start_y_cam) * self.scale_y_cam),
-        )
+        return self._camera_feed_rect
 
     def camera_feed_surface(self):
         """`self.camera_image` as a pygame surface, whatever its channels."""
@@ -1510,6 +1517,17 @@ class Game:
         # Initialize the translate value for x and y
         self.translation_x_cam = int(self.start_x_cam * self.scale_x_cam)
         self.translation_y_cam = int(self.start_y_cam * self.scale_y_cam)
+
+        # Where the camera feed belongs on the canvas - computed once here
+        # since none of its inputs change mid-round, instead of every call
+        # to camera_feed_rect() (up to twice/frame in this game's HUD/feed
+        # draw calls).
+        self._camera_feed_rect = pygame.Rect(
+            int(self.start_x_cam * self.scale_x_cam),
+            int(self.start_y_cam * self.scale_y_cam),
+            int((self.end_x_cam - self.start_x_cam) * self.scale_x_cam),
+            int((self.end_y_cam - self.start_y_cam) * self.scale_y_cam),
+        )
 
         # Initialize the score
         self.balloons_score = 0
@@ -2155,6 +2173,16 @@ class Game:
         # Initialize the translate value for x and y
         self.translation_x_cam = int(self.start_x_cam * self.scale_x_cam)
         self.translation_y_cam = int(self.start_y_cam * self.scale_y_cam)
+
+        # Where the camera feed belongs on the canvas - computed once here
+        # since none of its inputs change mid-round, instead of every call
+        # to camera_feed_rect() in this game's per-frame feed draw call.
+        self._camera_feed_rect = pygame.Rect(
+            int(self.start_x_cam * self.scale_x_cam),
+            int(self.start_y_cam * self.scale_y_cam),
+            int((self.end_x_cam - self.start_x_cam) * self.scale_x_cam),
+            int((self.end_y_cam - self.start_y_cam) * self.scale_y_cam),
+        )
 
         # Calculate the play field height and width
         play_field_height, play_field_width = (
@@ -2906,9 +2934,12 @@ class Game:
                 self.runner_cloud_timer = current_time
                 self.runner_cloud_spawn_time = random.randint(1500, 3000)
 
-            # Spawn obstacles at the right edge of the play field
+            # Spawn obstacles at the right edge of the play field. Reuses
+            # current_time (already fetched above for the cloud-spawn check)
+            # instead of calling pygame.time.get_ticks() again at each of
+            # these three points - the same instant, several times over.
             if self.runner_obstacle_spawn:
-                if pygame.time.get_ticks() - self.runner_obstacle_timer > 1500:
+                if current_time - self.runner_obstacle_timer > 1500:
                     if random.randint(1, 10) <= 7:
                         obstacle = Cactus(self.runner_field_rect.right, 0)
                         obstacle.rect.bottom = self.runner_ground_y
@@ -2923,10 +2954,10 @@ class Game:
                         )
                     self.runner_obstacle_group.add(obstacle)
 
-                    self.runner_obstacle_timer = pygame.time.get_ticks()
+                    self.runner_obstacle_timer = current_time
                     self.runner_obstacle_spawn = False
                     self.runner_obstacle_cooldown = random.randint(1500, 3000)
-            elif pygame.time.get_ticks() - self.runner_obstacle_timer > self.runner_obstacle_cooldown:
+            elif current_time - self.runner_obstacle_timer > self.runner_obstacle_cooldown:
                 self.runner_obstacle_spawn = True
 
             # Everything below is confined to the play field, so sprites and

@@ -40,22 +40,12 @@ class Runner(pygame.sprite.Sprite):
     def __init__(self, pos_x, ground_y):
         super().__init__()
 
-        self.run_imgs = [
-            _scale(_load_trimmed("runner-run-1.png"), RUNNER_SCALE),
-            _scale(_load_trimmed("runner-run-2.png"), RUNNER_SCALE),
-        ]
-
-        self.jump_img = _scale(_load_trimmed("runner-jump.png"), RUNNER_SCALE)
-
-        # Squash the crouch art so ducking actually lowers the runner's profile
-        run_height = self.run_imgs[0].get_height()
-        duck_height = int(run_height * DUCK_HEIGHT_RATIO)
-        self.duck_imgs = []
-        for name in ("runner-duck-1.png", "runner-duck-2.png"):
-            duck = _load_trimmed(name)
-            self.duck_imgs.append(
-                _scale_to(duck, duck.get_width() * RUNNER_SCALE, duck_height)
-            )
+        # Shared, never-mutated Surfaces - a fresh Runner is built every
+        # in-round restart (a game built around short rounds makes this a
+        # very common action), so caching these avoids 5 disk loads + 5
+        # convert_alpha() + crop + copy, plus 5 transform.scale() calls,
+        # every single restart.
+        self.run_imgs, self.jump_img, self.duck_imgs = _cached_runner_images()
 
         self.run_index = 0
         self.duck_index = 0
@@ -124,6 +114,35 @@ class Runner(pygame.sprite.Sprite):
             self.image = self.run_imgs[self.run_index]
 
         self._align_to_ground()
+
+
+_runner_image_cache = None
+
+
+def _cached_runner_images():
+    global _runner_image_cache
+    if _runner_image_cache is not None:
+        return _runner_image_cache
+
+    run_imgs = [
+        _scale(_load_trimmed("runner-run-1.png"), RUNNER_SCALE),
+        _scale(_load_trimmed("runner-run-2.png"), RUNNER_SCALE),
+    ]
+    jump_img = _scale(_load_trimmed("runner-jump.png"), RUNNER_SCALE)
+
+    # Squash the crouch art so ducking actually lowers the runner's profile
+    run_height = run_imgs[0].get_height()
+    duck_height = int(run_height * DUCK_HEIGHT_RATIO)
+    duck_imgs = []
+    for name in ("runner-duck-1.png", "runner-duck-2.png"):
+        duck = _load_trimmed(name)
+        duck_imgs.append(_scale_to(duck, duck.get_width() * RUNNER_SCALE, duck_height))
+
+    images = (run_imgs, jump_img, duck_imgs)
+    # Only memoize once a display exists - see _cached_cactus_image for why.
+    if pygame.display.get_surface() is not None:
+        _runner_image_cache = images
+    return images
 
 
 class Obstacle(pygame.sprite.Sprite):
