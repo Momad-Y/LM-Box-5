@@ -75,9 +75,9 @@ def test_jump_clears_the_tallest_cactus_at_the_reference_frame_rate():
 
 
 def test_jump_peak_altitude_matches_the_documented_invariant():
-    # Module docstring: apex ~= JUMP_VELOCITY^2 / (2 * GRAVITY) ~= 137px
+    # Module docstring: apex ~= JUMP_VELOCITY^2 / (2 * GRAVITY) ~= 76.5px
     peak, _ = _simulate_jump(dt_scale=1.0)
-    assert 120 <= peak <= 155
+    assert 65 <= peak <= 90
 
 
 def test_jump_lands_eventually():
@@ -107,7 +107,10 @@ def test_jump_peak_altitude_is_consistent_across_simulated_frame_rates():
 
 
 def test_jump_clears_the_cactus_at_every_simulated_frame_rate():
-    for dt_scale in (0.5, 1.0, 2.0, 3.0):
+    # 2.0 is the real ceiling: frame_dt_scale() clamps to
+    # MAX_FRAME_DT(1/15) * TARGET_FPS(30) = 2.0, so dt_scale never goes
+    # higher than this in an actual game loop.
+    for dt_scale in (0.5, 1.0, 2.0):
         peak, _ = _simulate_jump(dt_scale=dt_scale)
         assert peak > TALLEST_CACTUS_HEIGHT
 
@@ -142,3 +145,52 @@ def test_duck_animation_advances_with_dt_scale():
     runner.animation_timer = 0
     runner.update(duck_input=True, dt_scale=2.5)
     assert runner.animation_timer == 2.5
+
+
+# --------------------------------------------------------------- duck-vs-jump
+# Regression coverage for the balance fix: a low-flying pterodactyl
+# (RUNNER_DUCK_UNDER_HEIGHT above the ground) must require an actual duck -
+# standing still collides, ducking clears it, and no jump timing clears it.
+# Getting any one of these three wrong either brings back the "just jump
+# everything" exploit or makes the obstacle untouchable no matter what a
+# player does.
+from gui.gui import RUNNER_DUCK_UNDER_HEIGHT  # noqa: E402
+
+PTERO_HEIGHT = 36  # trimmed sprite height, see gui/resources/images/ptero-*.png
+RUN_HEIGHT = 60
+DUCK_HEIGHT = 33
+GROUND_Y = 800
+
+
+def _low_ptero_rect():
+    rect = pygame.Rect(0, 0, 74, PTERO_HEIGHT)
+    rect.bottom = GROUND_Y - RUNNER_DUCK_UNDER_HEIGHT
+    return rect
+
+
+def test_standing_collides_with_the_low_ptero():
+    standing_rect = pygame.Rect(0, GROUND_Y - RUN_HEIGHT, 45, RUN_HEIGHT)
+    assert standing_rect.colliderect(_low_ptero_rect())
+
+
+def test_ducking_clears_the_low_ptero():
+    duck_rect = pygame.Rect(0, GROUND_Y - DUCK_HEIGHT, 45, DUCK_HEIGHT)
+    assert not duck_rect.colliderect(_low_ptero_rect())
+
+
+def test_no_jump_timing_clears_the_low_ptero():
+    # Sweep every possible altitude the jump ever reaches (its full curve,
+    # not just the peak) - if the runner's rect ever fully clears the
+    # ptero's rect at ANY point in the arc, that altitude is a viable dodge.
+    runner = _bare_runner()
+    runner.update(jump_input=True, dt_scale=1.0)
+    guard = 0
+    ptero_rect = _low_ptero_rect()
+    while runner.jumping and guard < 100_000:
+        jump_rect = pygame.Rect(0, GROUND_Y - runner.altitude - 69, 45, 69)
+        assert jump_rect.colliderect(ptero_rect), (
+            f"jump cleared the low ptero at altitude={runner.altitude}"
+        )
+        runner.update(dt_scale=1.0)
+        guard += 1
+    assert guard < 100_000

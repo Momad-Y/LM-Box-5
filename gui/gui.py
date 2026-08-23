@@ -1509,6 +1509,15 @@ class Game:
             [19, 23],
         ]
 
+        # How strongly a wave's balloons cluster into its first half
+        # (biased_random_int's bias_strength - higher means more clustered).
+        # Early waves are small enough that a front-loaded "arrival flurry"
+        # never gets dense; later waves have 3-4x as many balloons, so the
+        # same strong bias piles them into a burst instead - tapering it down
+        # spreads the higher-count waves closer to evenly across the wave's
+        # full duration while keeping the flurry feel where it doesn't hurt.
+        apperance_time_bias_per_wave = [10, 8, 6, 4, 3]
+
         self.waves_balloons = []
 
         # Every balloon instance across every wave picks from the same 10
@@ -1582,7 +1591,10 @@ class Game:
                     )
                 )))
                 apperance_time = biased_random_int(
-                    0, self.max_wave_time, (0, self.max_wave_time // 2), 10
+                    0,
+                    self.max_wave_time,
+                    (0, self.max_wave_time // 2),
+                    apperance_time_bias_per_wave[wave_config],
                 )
                 balloon_type = (
                     0 if not is_combo else int(balloon_img_path.split(".")[-2][-1])
@@ -2157,7 +2169,12 @@ class Game:
 
     def start_pong_game(self):
 
-        round_start_time = time.time()
+        # Tracks time since the last speed bump, not time since the last
+        # point - it must NOT reset when either player scores, or the ramp
+        # only ever accumulates within one uninterrupted rally instead of
+        # across the whole match (a match made of short exchanges would
+        # never speed up at all).
+        last_speed_increment_time = time.time()
 
         while True:
             for event in self.pump_events():
@@ -2167,7 +2184,7 @@ class Game:
 
             # Increase the ball speed every interval
             current_time = time.time()
-            if current_time - round_start_time > self.speed_increment_interval:
+            if current_time - last_speed_increment_time > self.speed_increment_interval:
                 self.ball_speed_x += (
                     self.speed_increment
                     if self.ball_speed_x > 0
@@ -2184,7 +2201,7 @@ class Game:
                 self.ball_speed_y = max(
                     -self.max_ball_speed, min(self.max_ball_speed, self.ball_speed_y)
                 )
-                round_start_time = current_time
+                last_speed_increment_time = current_time
 
             # Take a camera image. A transient read failure (USB hiccup, the
             # camera briefly grabbed by another process) just keeps last
@@ -2302,7 +2319,6 @@ class Game:
                 self.ball_speed_y = random.choice(
                     [-self.base_ball_speed, self.base_ball_speed]
                 )
-                round_start_time = time.time()
 
             elif self.ball_x >= self.play_field_rect.right - self.ball_raduis:
                 self.point_whistle_sound.play()
@@ -2315,7 +2331,6 @@ class Game:
                 self.ball_speed_y = random.choice(
                     [-self.base_ball_speed, self.base_ball_speed]
                 )
-                round_start_time = time.time()
 
             # The feed is drawn over the background rather than into it.
             # pong_game_bg_image_pygame was already built once at init -

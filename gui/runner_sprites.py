@@ -8,9 +8,13 @@ IMAGES_DIR = f"{CWD}/resources/images"
 
 
 # Jump physics, tuned for the 30 FPS loop the camera can sustain. The apex is
-# JUMP_VELOCITY^2 / (2 * GRAVITY) ~= 137px over a ~0.76s round trip, which
-# clears the tallest (60px) cactus with plenty of room.
-JUMP_VELOCITY = -24
+# JUMP_VELOCITY^2 / (2 * GRAVITY) ~= 76.5px over a ~0.6s round trip - enough
+# to clear the tallest (60px) cactus with room to spare, but not enough to
+# clear a low-flying pterodactyl (RUNNER_DUCK_UNDER_HEIGHT + this sprite's own
+# height, ~81px). That gap is what makes ducking an actually required, not
+# just cosmetic, response to the low ptero. A taller jump than this defeats
+# duck entirely - see gui/gui.py's RUNNER_DUCK_UNDER_HEIGHT comment.
+JUMP_VELOCITY = -19
 GRAVITY = 2.1
 
 # Frames between animation swaps at 30 FPS
