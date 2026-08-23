@@ -388,7 +388,17 @@ def draw_viewport(game, rect, frame, tag=None, overlays=()):
             max(rect.width, round(frame.get_width() * scale)),
             max(rect.height, round(frame.get_height() * scale)),
         )
-        scaled = pygame.transform.smoothscale(frame, scaled_size)
+        # smoothscale() for an upscale (scale > 1.0): Balloons/Pong's main
+        # camera box is architecturally always a 1.5x upscale of the
+        # captured frame (the background art's 1280x720 space scaled to the
+        # 1920x1080 canvas), and nearest-neighbour's blockiness is visibly
+        # noticeable on a player's own live face/hand feed at that factor -
+        # confirmed by rendering both side by side. scale() only for a
+        # downscale or exact 1:1 (Runner's continuous camera box and every
+        # game's pre-round demo/countdown feed, both real downscales), where
+        # there's no quality loss to trade away for the lower cost.
+        transform = pygame.transform.smoothscale if scale > 1.0 else pygame.transform.scale
+        scaled = transform(frame, scaled_size)
         crop = pygame.Rect(0, 0, rect.width, rect.height)
         crop.center = scaled.get_rect().center
         surface.blit(scaled, rect.topleft, area=crop)

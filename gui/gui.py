@@ -1156,15 +1156,25 @@ class Game:
 
         scale = min(window_width / canvas_width, window_height / canvas_height)
         target = (max(1, int(canvas_width * scale)), max(1, int(canvas_height * scale)))
+        offset = ((window_width - target[0]) // 2, (window_height - target[1]) // 2)
 
-        # Nearest-neighbour keeps the pixel art crisp
-        frame = pygame.transform.scale(self.screen, target)
+        # A window that already matches the canvas 1:1 (the common case - a
+        # fullscreen window on a 1080p display, since GAME_CANVAS_SIZE is
+        # 1920x1080) needs no resampling at all. transform.scale() always
+        # allocates and resamples a brand-new ~8MB surface even for a same-
+        # size copy, so skipping it here saves that cost every single frame.
+        if target == (canvas_width, canvas_height):
+            frame = self.screen
+        else:
+            # Nearest-neighbour keeps the pixel art crisp
+            frame = pygame.transform.scale(self.screen, target)
 
-        self.window.fill((0, 0, 0))
-        self.window.blit(
-            frame,
-            ((window_width - target[0]) // 2, (window_height - target[1]) // 2),
-        )
+        # Only clear to black when the scaled frame doesn't fill the window
+        # exactly - otherwise the blit below overwrites every pixel anyway,
+        # and there's no letterbox bar left showing from a previous frame.
+        if target != (window_width, window_height):
+            self.window.fill((0, 0, 0))
+        self.window.blit(frame, offset)
         pygame.display.flip()
 
     def camera_surface(self, size=None):
@@ -1404,7 +1414,15 @@ class Game:
         # Initialize the Balloons game screen ratio. The box this ends up in
         # (camera_feed_rect) is sized from these exact dimensions, so
         # changing the ratio changes the box.
-        self.balloon_screen_ratio = 2.5
+        #
+        # 3.0 specifically: it makes the resulting frame (1920//3.0,
+        # 1080//3.0) = (640, 360) fit entirely within the native
+        # CAMERA_CAPTURE_WIDTH/HEIGHT (640x480) capture - resize_cover then
+        # needs a pure centre-crop with no upscaling at all, instead of the
+        # old ratio (2.5 -> 768x432) which was wider than the native
+        # capture and forced an upscale-then-crop before every hand-tracking
+        # call. Shrinks the on-screen camera box by ~17%.
+        self.balloon_screen_ratio = 3.0
 
         # Take an initial camera image. A blank placeholder stands in until
         # the real feed arrives on the first loop iteration below -
