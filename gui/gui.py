@@ -201,6 +201,12 @@ class Game:
         # re-decoding the PNG 30x/sec (see get_user_face_surface).
         self._face_surface_cache = {}
 
+        # Resolved names, keyed by user id - same idea as the face cache
+        # above, for the same reason: player_label()/get_user_name() are
+        # called every frame by every game's HUD, and a name can't change
+        # mid-round either.
+        self._user_name_cache = {}
+
         # Games whose how-to screen has already been shown, so the rules
         # earn their keypress once rather than every round. Persisted to
         # settings.json (see mark_instructions_seen) rather than session-only,
@@ -451,6 +457,7 @@ class Game:
                 self.change_setting(key, 0)
 
         self._invalidate_face_cache(user_id)
+        self._invalidate_user_name_cache(user_id)
 
     def record_score(self, user_id, game, score):
         """Store the result of a round for a user."""
@@ -495,14 +502,19 @@ class Game:
         return result.fetchall() if result is not None else []
 
     def get_user_name(self, user_id):
-        """Return a user's name, or None if they no longer exist."""
+        """Return a user's name, or None if they no longer exist.
+
+        Cached per user id (see _user_name_cache) - a round's active
+        players don't change mid-round, but every game's HUD asks for
+        their name every single frame via player_label().
+        """
         if not user_id:
             return None
-        result = self._db_execute("SELECT name FROM users WHERE id = ?", (user_id,))
-        if result is None:
-            return None
-        row = result.fetchone()
-        return row[0] if row else None
+        if user_id not in self._user_name_cache:
+            result = self._db_execute("SELECT name FROM users WHERE id = ?", (user_id,))
+            row = result.fetchone() if result is not None else None
+            self._user_name_cache[user_id] = row[0] if row else None
+        return self._user_name_cache[user_id]
 
     def rename_user(self, user_id, name):
         """Change a user's name, keeping their id and picture."""
@@ -512,6 +524,7 @@ class Game:
         self._db_execute(
             "UPDATE users SET name = ? WHERE id = ?", (name, user_id), commit=True
         )
+        self._invalidate_user_name_cache(user_id)
 
     def add_user_returning_id(self, name):
         """Add a user and return the new row's id, or None if the name was
@@ -573,7 +586,17 @@ class Game:
         that asks for it re-decodes instead of showing a stale image.
         """
         self._face_surface_cache.pop(user_id, None)
-        
+
+    def _invalidate_user_name_cache(self, user_id):
+        """Forget any name cached for a user.
+
+        Called whenever their name changes (or they're deleted), so the
+        next frame that asks for it re-queries instead of showing a stale
+        name.
+        """
+        self._user_name_cache.pop(user_id, None)
+
+
     def init_users_database(self):
         """Show the users screen: add, rename, photograph or delete players."""
         self.sync_screen_size()
@@ -1359,54 +1382,70 @@ class Game:
         # Play the background music
         mixer.music.play(-1)
 
-        # Load the balloon popping sounds
-        self.balloon_popping_sounds = [
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-1.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-2.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-3.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-4.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-5.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-6.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-7.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-8.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-9.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-10.ogg"),
-        ]
+        # Sounds, background and pin image are fixed for the whole process -
+        # loaded from disk once, ever, rather than on every trip back to the
+        # main menu and into Balloons again (previously every re-entry paid
+        # a real disk-read + decode hit right as the player expected the
+        # game to start). Only per-round randomized state (the wave tables,
+        # built further down) needs to happen on every entry.
+        if not hasattr(self, "balloon_popping_sounds"):
+            self.balloon_popping_sounds = [
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-1.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-2.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-3.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-4.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-5.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-6.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-7.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-8.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-9.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-10.ogg"),
+            ]
+            self.balloon_game_over_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/game-over.ogg"
+            )
+            self.balloon_popping_fill_sounds = mixer.Sound(
+                f"{CWD}/resources/sounds/balloon-inflation.ogg"
+            )
+
+            # Initialize the background image for the Balloons game. Built
+            # once ever into the surface actually drawn every frame -
+            # nothing about it changes between rounds, so redoing this
+            # conversion on every menu round-trip would just repeat the
+            # same work for identical output. The raw decoded array is a
+            # local variable, not kept on self - only its (small, cheap to
+            # keep) native size is, since array_to_scaled_surface's output
+            # is scaled to the canvas and no longer has the original
+            # dimensions the camera-box geometry below is computed against.
+            balloons_game_bg_image = self.load_rgba_background(
+                f"{CWD}/resources/images/balloons_game_bg.png"
+            )
+            self.balloons_game_bg_native_size = (
+                balloons_game_bg_image.shape[1],
+                balloons_game_bg_image.shape[0],
+            )
+            self.balloons_game_bg_image_pygame = self.array_to_scaled_surface(
+                balloons_game_bg_image
+            )
+
+            # Initialize the pin image. convert_alpha() matches the pixel
+            # format SDL actually renders in, so every blit is a fast
+            # same-format copy instead of a slow per-pixel format
+            # translation.
+            self.pin_image = pygame.image.load(
+                f"{CWD}/resources/images/pin.png"
+            ).convert_alpha()
+
+            # Make the pin image smaller
+            self.pin_image = pygame.transform.scale(self.pin_image, (70, 70))
+
+        # Volume always reflects the current setting, even though the Sound
+        # objects above are only loaded from disk once - sfx_volume() is
+        # re-applied here every entry, same as before this change.
         for sound in self.balloon_popping_sounds:
             sound.set_volume(self.sfx_volume(0.2))
-
-        self.balloon_game_over_sound = mixer.Sound(
-            f"{CWD}/resources/sounds/game-over.ogg"
-        )
         self.balloon_game_over_sound.set_volume(self.sfx_volume(0.5))
-
-        # Load the balloon popping fill sounds
-        self.balloon_popping_fill_sounds = mixer.Sound(
-            f"{CWD}/resources/sounds/balloon-inflation.ogg"
-        )
         self.balloon_popping_fill_sounds.set_volume(self.sfx_volume(0.2))
-
-        # Initialize the background image for the Balloons game. Built once
-        # here into the surface actually drawn every frame - nothing about
-        # it changes during a round, so redoing this conversion per frame
-        # (as the loop used to) would just repeat the same work 30x/sec.
-        self.balloons_game_bg_image = self.load_rgba_background(
-            f"{CWD}/resources/images/balloons_game_bg.png"
-        )
-        self.balloons_game_bg_image_pygame = self.array_to_scaled_surface(
-            self.balloons_game_bg_image
-        )
-
-        # Initialize the pin image. convert_alpha() matches the pixel format
-        # SDL actually renders in, so every blit is a fast same-format copy
-        # instead of a slow per-pixel format translation - loaded/scaled once
-        # here and reused every frame, so this cost is paid only once.
-        self.pin_image = pygame.image.load(
-            f"{CWD}/resources/images/pin.png"
-        ).convert_alpha()
-
-        # Make the pin image smaller
-        self.pin_image = pygame.transform.scale(self.pin_image, (70, 70))
 
         # Initialize the balloons list
         self.balloons = []
@@ -1446,8 +1485,12 @@ class Game:
         # A blank placeholder until the first frame arrives
         self.camera_image[:, :] = 0
 
-        # Get the camera image dimensions and the background image dimensions
-        bg_height, bg_width, _ = self.balloons_game_bg_image.shape
+        # Get the camera image dimensions and the background image dimensions.
+        # bg_width/bg_height come from the cached native size, not the
+        # (no-longer-kept) raw array or the cached pygame surface - that
+        # surface is scaled to the canvas, not the background art's own
+        # 1280x720 space this geometry is computed in.
+        bg_width, bg_height = self.balloons_game_bg_native_size
         image_height, image_width, _ = self.camera_image.shape
 
         # Calculate the top-left coordinates for the camera image
@@ -1461,10 +1504,8 @@ class Game:
         self.end_y_cam = top_left_y + image_height + 50
 
         # Initialize the scale value for x and y
-        self.scale_x_cam = self.user_screen_width / self.balloons_game_bg_image.shape[1]
-        self.scale_y_cam = (
-            self.user_screen_height / self.balloons_game_bg_image.shape[0]
-        )
+        self.scale_x_cam = self.user_screen_width / bg_width
+        self.scale_y_cam = self.user_screen_height / bg_height
 
         # Initialize the translate value for x and y
         self.translation_x_cam = int(self.start_x_cam * self.scale_x_cam)
@@ -1989,16 +2030,31 @@ class Game:
         # Play the background music
         mixer.music.play(-1)
 
-        # Initialize the background image for the Pong game. Built once here
-        # into the surface actually drawn every frame - nothing about it
-        # changes during a round, so redoing this conversion per frame (as
-        # the loop used to) would just repeat the same work 30x/sec.
-        self.pong_game_bg_image = self.load_rgba_background(
-            f"{CWD}/resources/images/pong_game_bg.png"
-        )
-        self.pong_game_bg_image_pygame = self.array_to_scaled_surface(
-            self.pong_game_bg_image
-        )
+        # Sounds and background are fixed for the whole process - loaded
+        # from disk once, ever, rather than on every trip back to the main
+        # menu and into Pong again. One flag gates both blocks below (rather
+        # than each checking hasattr on its own first attribute) so they
+        # can't drift out of sync with each other.
+        first_pong_entry = not hasattr(self, "pong_game_bg_image_pygame")
+
+        if first_pong_entry:
+            # Built once into the surface actually drawn every frame -
+            # nothing about it changes between rounds, so redoing this on
+            # every menu round-trip would repeat the same work for
+            # identical output. The raw decoded array is a local variable,
+            # not kept on self - only its (small, cheap to keep) native
+            # size is, since array_to_scaled_surface's output is scaled to
+            # the canvas.
+            pong_game_bg_image = self.load_rgba_background(
+                f"{CWD}/resources/images/pong_game_bg.png"
+            )
+            self.pong_game_bg_native_size = (
+                pong_game_bg_image.shape[1],
+                pong_game_bg_image.shape[0],
+            )
+            self.pong_game_bg_image_pygame = self.array_to_scaled_surface(
+                pong_game_bg_image
+            )
 
         # Initialize the ball radius
         self.ball_raduis = 10
@@ -2068,8 +2124,12 @@ class Game:
         # Set the entire camera image to be black
         self.camera_image[:, :] = 0
 
-        # Get the camera image dimensions and the background image dimensions
-        bg_height, bg_width, _ = self.pong_game_bg_image.shape
+        # Get the camera image dimensions and the background image
+        # dimensions. bg_width/bg_height come from the cached native size,
+        # not the (no-longer-kept) raw array or the cached pygame surface -
+        # that surface is scaled to the canvas, not the background art's own
+        # 1280x720 space this geometry is computed in.
+        bg_width, bg_height = self.pong_game_bg_native_size
         image_height, image_width, _ = self.camera_image.shape
 
         # Calculate the top-left coordinates for the camera image
@@ -2089,8 +2149,8 @@ class Game:
         self.end_y_cam = top_left_y + image_height + pong_vertical_bias
 
         # Initialize the scale value for x and y
-        self.scale_x_cam = self.user_screen_width / self.pong_game_bg_image.shape[1]
-        self.scale_y_cam = self.user_screen_height / self.pong_game_bg_image.shape[0]
+        self.scale_x_cam = self.user_screen_width / bg_width
+        self.scale_y_cam = self.user_screen_height / bg_height
 
         # Initialize the translate value for x and y
         self.translation_x_cam = int(self.start_x_cam * self.scale_x_cam)
@@ -2145,30 +2205,37 @@ class Game:
         # The rules have their own screen now, so this is a get-ready beat
         self.pong_first_wave_wait_time = 5
 
-        # Load hit sounds
-        self.hit_sounds = [
-            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-1.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-2.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-3.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-4.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-5.ogg"),
-            mixer.Sound(f"{CWD}/resources/sounds/ball-hit-6.ogg"),
-        ]
+        if first_pong_entry:
+            # Load hit sounds
+            self.hit_sounds = [
+                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-1.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-2.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-3.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-4.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-5.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-6.ogg"),
+            ]
+
+            # Load whistle sound
+            self.point_whistle_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/referee-whistle-1.ogg"
+            )
+            self.pong_game_over_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/referee-whistle-2.ogg"
+            )
+
+            # Load game over sound
+            self.ball_drop_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/ball-dropping.ogg"
+            )
+
+        # Volume always reflects the current setting, even though the Sound
+        # objects above are only loaded from disk once - sfx_volume() is
+        # re-applied here every entry, same as before this change.
         for sound in self.hit_sounds:
             sound.set_volume(self.sfx_volume(0.2))
-
-        # Load whistle sound
-        self.point_whistle_sound = mixer.Sound(
-            f"{CWD}/resources/sounds/referee-whistle-1.ogg"
-        )
-        self.pong_game_over_sound = mixer.Sound(
-            f"{CWD}/resources/sounds/referee-whistle-2.ogg"
-        )
         self.point_whistle_sound.set_volume(self.sfx_volume(0.2))
         self.pong_game_over_sound.set_volume(self.sfx_volume(0.5))
-
-        # Load game over sound
-        self.ball_drop_sound = mixer.Sound(f"{CWD}/resources/sounds/ball-dropping.ogg")
         self.ball_drop_sound.set_volume(self.sfx_volume(0.2))
 
         # Initialize the max score
@@ -2538,42 +2605,66 @@ class Game:
         # Play the background music
         mixer.music.play(-1)
 
-        # Load the sound effects. The countdown cue uses the Runner game's own
-        # chime rather than Pong's 5-second ball-drop, which belonged to a
-        # different game and outlasted the countdown.
-        self.runner_start_sound = mixer.Sound(f"{CWD}/resources/sounds/runner-point.ogg")
+        # Sounds, background and ground tile are fixed for the whole
+        # process - loaded from disk once, ever, rather than on every trip
+        # back to the main menu and into Runner again. The countdown cue
+        # uses the Runner game's own chime rather than Pong's 5-second
+        # ball-drop, which belonged to a different game and outlasted the
+        # countdown.
+        if not hasattr(self, "runner_start_sound"):
+            self.runner_start_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/runner-point.ogg"
+            )
+            self.runner_jump_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/runner-jump.ogg"
+            )
+            self.runner_lose_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/runner-lose.ogg"
+            )
+            self.runner_point_sound = mixer.Sound(
+                f"{CWD}/resources/sounds/runner-point.ogg"
+            )
+
+            # Initialize the background image for the Runner game. The raw
+            # decoded array is a local variable, not kept on self - nothing
+            # reads it again after this method returns.
+            runner_game_bg_image = cv2.imread(
+                f"{CWD}/resources/images/runner_game_bg.png"
+            )
+            self.runner_game_bg_image_pygame = pygame.image.frombuffer(
+                cv2.cvtColor(runner_game_bg_image, cv2.COLOR_BGR2RGB).tobytes(),
+                (runner_game_bg_image.shape[1], runner_game_bg_image.shape[0]),
+                "RGB",
+            )
+            self.runner_game_bg_image_pygame = pygame.transform.scale(
+                self.runner_game_bg_image_pygame,
+                self.screen.get_size(),
+            )
+
+            # Load the ground image (tiled and scrolled across the bottom),
+            # scaled 1.5x to match the sprites so the ground line reads clearly
+            ground_image = pygame.image.load(
+                f"{CWD}/resources/images/ground.png"
+            ).convert_alpha()
+            self.runner_ground_image = pygame.transform.scale(
+                ground_image,
+                (
+                    int(ground_image.get_width() * 1.5),
+                    int(ground_image.get_height() * 1.5),
+                ),
+            )
+            # The solid line sits partway down the tile, so shift the blit
+            # up by that much to put the drawn ground exactly under the
+            # sprites' feet
+            self.runner_ground_offset = ground_line_offset(self.runner_ground_image)
+
+        # Volume always reflects the current setting, even though the Sound
+        # objects above are only loaded from disk once - sfx_volume() is
+        # re-applied here every entry, same as before this change.
         self.runner_start_sound.set_volume(self.sfx_volume(0.4))
-        self.runner_jump_sound = mixer.Sound(f"{CWD}/resources/sounds/runner-jump.ogg")
         self.runner_jump_sound.set_volume(self.sfx_volume(0.4))
-        self.runner_lose_sound = mixer.Sound(f"{CWD}/resources/sounds/runner-lose.ogg")
         self.runner_lose_sound.set_volume(self.sfx_volume(0.5))
-        self.runner_point_sound = mixer.Sound(f"{CWD}/resources/sounds/runner-point.ogg")
         self.runner_point_sound.set_volume(self.sfx_volume(0.3))
-
-        # Initialize the background image for the Runner game
-        self.runner_game_bg_image = cv2.imread(f"{CWD}/resources/images/runner_game_bg.png")
-        self.runner_game_bg_image_pygame = pygame.image.frombuffer(
-            cv2.cvtColor(self.runner_game_bg_image, cv2.COLOR_BGR2RGB).tobytes(),
-            (self.runner_game_bg_image.shape[1], self.runner_game_bg_image.shape[0]),
-            "RGB",
-        )
-        self.runner_game_bg_image_pygame = pygame.transform.scale(
-            self.runner_game_bg_image_pygame,
-            self.screen.get_size(),
-        )
-
-        # Load the ground image (tiled and scrolled across the bottom),
-        # scaled 1.5x to match the sprites so the ground line reads clearly
-        ground_image = pygame.image.load(
-            f"{CWD}/resources/images/ground.png"
-        ).convert_alpha()
-        self.runner_ground_image = pygame.transform.scale(
-            ground_image,
-            (int(ground_image.get_width() * 1.5), int(ground_image.get_height() * 1.5)),
-        )
-        # The solid line sits partway down the tile, so shift the blit up by
-        # that much to put the drawn ground exactly under the sprites' feet
-        self.runner_ground_offset = ground_line_offset(self.runner_ground_image)
 
         # The camera overlay's box comes from screen_ingame.corner_viewport,
         # so every game's feed sits in the same place and at the same size

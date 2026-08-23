@@ -148,6 +148,7 @@ class Obstacle(pygame.sprite.Sprite):
 # shared Surface is only ever blitted, never mutated per-instance.
 _cactus_image_cache = {}
 _ptero_image_cache = None
+_cloud_image_cache = None
 
 
 def _cached_cactus_image(cactus_num):
@@ -180,6 +181,27 @@ def _cached_ptero_images():
     if pygame.display.get_surface() is not None:
         _ptero_image_cache = images
     return images
+
+
+def _cached_cloud_image():
+    global _cloud_image_cache
+    if _cloud_image_cache is not None:
+        return _cloud_image_cache
+
+    # convert_alpha() so every blit is a fast same-format copy instead of a
+    # slow per-pixel format translation - Cactus/Ptero already do this via
+    # _load_trimmed, Cloud never had the equivalent.
+    image = pygame.image.load(f"{IMAGES_DIR}/cloud.png")
+    try:
+        image = image.convert_alpha()
+    except pygame.error:
+        # No display yet (e.g. importing for a test); the raw surface is
+        # fine - see _cached_cactus_image for why this isn't cached either.
+        pass
+    # Only memoize once a display exists - see _cached_cactus_image for why.
+    if pygame.display.get_surface() is not None:
+        _cloud_image_cache = image
+    return image
 
 
 class Cactus(Obstacle):
@@ -220,7 +242,7 @@ class Ptero(Obstacle):
 class Cloud(pygame.sprite.Sprite):
     def __init__(self, spawn_x=800, y_min=50, y_max=200):
         super().__init__()
-        self.image = pygame.image.load(f"{IMAGES_DIR}/cloud.png")
+        self.image = _cached_cloud_image()
         self.rect = self.image.get_rect()
         self.rect.x = spawn_x + random.randint(0, 100)
         self.rect.y = random.randint(y_min, max(y_min, y_max))
