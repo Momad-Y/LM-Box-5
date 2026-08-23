@@ -7,112 +7,32 @@ import time
 random.seed(time.time())
 
 
-def img_with_rounded_corners(image: np.ndarray, r: int, t: int, c: tuple) -> np.ndarray:
+def resize_cover(image: np.ndarray, width: int, height: int) -> np.ndarray:
+    """Resize `image` to exactly (width, height) without distorting it.
+
+    A plain cv2.resize to an arbitrary target size stretches non-uniformly
+    whenever the target aspect ratio differs from the source's - a camera
+    capture (4:3) squashed to fit a 16:9 box, say, comes out with everyone's
+    face stretched wide. This scales up by the same factor in both
+    directions (matching whichever dimension needs less enlarging) and then
+    centre-crops the overflow, so proportions stay correct and only the
+    edges of the picture are lost - the same "cover" behaviour as CSS
+    background-size: cover.
+
+    The output is always exactly (height, width) in shape, so callers that
+    size other geometry (a display rect, a play field) from that shape see
+    no change from a plain resize - only the pixel content differs.
     """
-    Draw a rectangle with rounded corners on an image.
+    source_height, source_width = image.shape[:2]
+    scale = max(width / source_width, height / source_height)
+    scaled_width = max(width, round(source_width * scale))
+    scaled_height = max(height, round(source_height * scale))
 
-    Args:
-        image (np.ndarray): Image to draw on.
-        r (int): Radius of the rounded corners.
-        t (int): Thickness of the rectangle.
-        c (tuple): Color of the rectangle.
+    scaled = cv2.resize(image, (scaled_width, scaled_height))
 
-    Returns:
-        np.ndarray: Image with the drawn rectangle.
-    """
-
-    c += (255,)
-
-    h, w = image.shape[:2]
-
-    # Create new image (three-channel hardcoded here...)
-    new_image = np.ones((h + 2 * t, w + 2 * t, 4), np.uint8) * 255
-    new_image[:, :, 3] = 0
-
-    # Draw four rounded corners
-    new_image = cv2.ellipse(
-        new_image, (int(r + t / 2), int(r + t / 2)), (r, r), 180, 0, 90, c, t
-    )
-    new_image = cv2.ellipse(
-        new_image,
-        (int(w - r + 3 * t / 2 - 1), int(r + t / 2)),
-        (r, r),
-        270,
-        0,
-        90,
-        c,
-        t,
-    )
-    new_image = cv2.ellipse(
-        new_image,
-        (int(r + t / 2), int(h - r + 3 * t / 2 - 1)),
-        (r, r),
-        90,
-        0,
-        90,
-        c,
-        t,
-    )
-    new_image = cv2.ellipse(
-        new_image,
-        (int(w - r + 3 * t / 2 - 1), int(h - r + 3 * t / 2 - 1)),
-        (r, r),
-        0,
-        0,
-        90,
-        c,
-        t,
-    )
-
-    # Draw four edges
-    new_image = cv2.line(
-        new_image,
-        (int(r + t / 2), int(t / 2)),
-        (int(w - r + 3 * t / 2 - 1), int(t / 2)),
-        c,
-        t,
-    )
-    new_image = cv2.line(
-        new_image,
-        (int(t / 2), int(r + t / 2)),
-        (int(t / 2), int(h - r + 3 * t / 2)),
-        c,
-        t,
-    )
-    new_image = cv2.line(
-        new_image,
-        (int(r + t / 2), int(h + 3 * t / 2)),
-        (int(w - r + 3 * t / 2 - 1), int(h + 3 * t / 2)),
-        c,
-        t,
-    )
-    new_image = cv2.line(
-        new_image,
-        (int(w + 3 * t / 2), int(r + t / 2)),
-        (int(w + 3 * t / 2), int(h - r + 3 * t / 2)),
-        c,
-        t,
-    )
-
-    # Generate masks for proper blending
-    mask = new_image[:, :, 3].copy()
-    mask = cv2.floodFill(mask, None, (int(w / 2 + t), int(h / 2 + t)), 128)[1]
-    mask[mask != 128] = 0
-    mask[mask == 128] = 1
-    mask = np.stack((mask, mask, mask), axis=2)
-
-    # Blend images
-    temp = np.zeros_like(new_image[:, :, :3])
-    temp[(t - 1) : (h + t - 1), (t - 1) : (w + t - 1)] = image.copy()
-    new_image[:, :, :3] = new_image[:, :, :3] * (1 - mask) + temp * mask
-
-    # Set proper alpha channel in new image
-    temp = new_image[:, :, 3].copy()
-    new_image[:, :, 3] = cv2.floodFill(
-        temp, None, (int(w / 2 + t), int(h / 2 + t)), 255
-    )[1]
-
-    return new_image
+    left = (scaled_width - width) // 2
+    top = (scaled_height - height) // 2
+    return scaled[top : top + height, left : left + width]
 
 
 def random_bool_by_chance(chance: float) -> bool:
