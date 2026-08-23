@@ -2,10 +2,12 @@
 
 Covers: the Runner jump-vs-duck fix (already exercised in depth by
 test_runner_physics.py's duck-vs-jump section), the Balloons wave-5
-front-loading tweak, and the Pong per-rally-to-per-match speed ramp.
+front-loading tweak, the Pong per-rally-to-per-match speed ramp, and the
+Runner speed-milestone pacing change.
 """
 import ast
 
+from gui.gui import RUNNER_SPEED_MILESTONE_POINTS
 from gui.utils import biased_random_int
 
 
@@ -89,3 +91,25 @@ def test_pong_speed_ramp_timer_is_not_reset_by_scoring():
         block = start_src[idx : idx + 400]
         assert "last_speed_increment_time" not in block
         assert "round_start_time" not in start_src
+
+
+# ---------------------------------------------------- runner ramp pacing
+def test_runner_speed_milestone_is_frequent_enough_for_an_average_round():
+    # Decision: the ramp should be a normal mid-round event, not a rare
+    # reward only exceptional-length runs reach. At the default score rate
+    # (3 points/sec at Normal), the first bump must land well under a
+    # minute in, not the old ~33s-per-100-points pacing.
+    score_rate = 3.0  # points/sec at Normal difficulty (0.1 * 30fps)
+    time_to_first_milestone = RUNNER_SPEED_MILESTONE_POINTS / score_rate
+    assert time_to_first_milestone < 20, (
+        f"first speed bump takes {time_to_first_milestone:.1f}s - "
+        "too slow to read as a normal round event"
+    )
+
+
+def test_runner_milestone_uses_the_named_constant_not_a_hardcoded_100():
+    src = open("gui/gui.py").read()
+    game_class = _game_class(src)
+    body_src = _method_source(game_class, src, "start_runner_game")
+    assert "RUNNER_SPEED_MILESTONE_POINTS" in body_src
+    assert "// 100" not in body_src

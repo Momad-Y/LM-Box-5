@@ -112,6 +112,12 @@ RUNNER_FIELD_COLOR = (255, 182, 193)
 # ducked under. It has to clear a crouching runner but block a standing one.
 RUNNER_DUCK_UNDER_HEIGHT = 45
 
+# Points between each speed-up milestone. At the default score rate (3
+# points/sec at Normal difficulty) this lands the first bump at ~13s and
+# the full ramp to the speed cap at ~3 minutes - meant to be a normal part
+# of an average round, not a rare reward only exceptional-length runs see.
+RUNNER_SPEED_MILESTONE_POINTS = 40
+
 
 class Game:
     def __init__(self):
@@ -2833,11 +2839,12 @@ class Game:
                 0.1 * dt_scale * self.difficulty_modifiers["score_multiplier"]
             )
 
-            # Speed up the game once per 100-point milestone (runner_score
-            # crosses each multiple of 100 over ~10 frames, so this is
-            # guarded by runner_speed_milestone rather than firing every frame
-            # int(runner_score) happens to be a multiple of 100).
-            milestone = int(self.runner_score) // 100
+            # Speed up the game once per RUNNER_SPEED_MILESTONE_POINTS-point
+            # milestone (runner_score crosses each multiple of it over
+            # several frames, so this is guarded by runner_speed_milestone
+            # rather than firing every frame int(runner_score) happens to be
+            # a multiple of it).
+            milestone = int(self.runner_score) // RUNNER_SPEED_MILESTONE_POINTS
             if milestone > self.runner_speed_milestone:
                 self.runner_speed_milestone = milestone
                 if self.runner_game_speed < 26:
