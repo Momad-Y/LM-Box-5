@@ -1,188 +1,305 @@
-# TODO: dead code, not wired into any game yet. Ported from the abandoned
-# origin/models branch (face capture / background replacement prototype) so
-# the feature isn't lost; needs integration into gui/ or removal.
+"""
+Face capture for user profile pictures.
+
+Produces a head-and-shoulders cutout with a transparent background, so the
+result can be drawn straight over a game's artwork. The background is removed
+with MediaPipe's selfie segmentation mask written into the alpha channel -
+compositing onto a flat green screen instead would bake the colour in and
+leave a halo wherever it is drawn.
+"""
 
 import cv2
-from cvzone.SelfiSegmentationModule import SelfiSegmentation
+import mediapipe as mp
 import numpy as np
 
+mp_selfie_segmentation = mp.solutions.selfie_segmentation
 
-def init_face_capture() -> tuple:
+# Size of the square cutout that gets stored per user
+CUTOUT_SIZE = 256
+
+# Segmentation confidence below which a pixel is treated as background
+MASK_THRESHOLD = 0.5
+
+# Width the frame is downscaled to before segmentation, for speed
+SEGMENTATION_WIDTH = 480
+
+# White border drawn around the cutout so it reads clearly against any
+# background it is later drawn over
+OUTLINE_THICKNESS = 6
+OUTLINE_COLOR = (255, 255, 255)
+
+# A cutout with less of the frame than this is treated as "nobody there"
+MIN_COVERAGE = 0.04
+
+
+def initialize_face_capture(model_selection: int = 1) -> tuple:
     """
-    Initialize the SelfiSegmentation object, the background color, and the face cascade classifier.
+    Initialize the segmentation model and the face detector.
+
+    Parameters:
+        model_selection: int
+            MediaPipe selfie segmentation model. 1 is the landscape model,
+            which is the faster of the two.
 
     Returns:
-        segmentor: SelfiSegmentation
-            The SelfiSegmentation object.
-        bg_color: tuple
-            The background color. Default is (0, 255, 0), Green color.
+        segmentor: SelfieSegmentation
+            The segmentation model.
         face_cascade: cv2.CascadeClassifier
-            The face cascade classifier
+            The face detector used to frame the cutout.
     """
 
-    segmentor = SelfiSegmentation()
-    bg_color = (0, 255, 0)
+    segmentor = mp_selfie_segmentation.SelfieSegmentation(
+        model_selection=model_selection
+    )
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
     )
-    return segmentor, bg_color, face_cascade
+    return segmentor, face_cascade
 
 
-def detect_face(
-    image: np.ndarray, face_cascade: cv2.CascadeClassifier, padding: int = 60
-) -> np.ndarray:
+def detect_face_box(image: np.ndarray, face_cascade, padding: int = 60) -> tuple:
     """
-    Detect faces in the image.
+    Find the region to crop around the largest detected face.
 
-    Args:
+    Parameters:
         image: np.ndarray
-            The image to detect faces in.
+            The BGR frame to search.
         face_cascade: cv2.CascadeClassifier
-            The face cascade classifier.
+            The face detector.
         padding: int
-            The padding to add to the detected face. Default is 60.
+            Extra pixels kept around the face so it isn't cropped tight.
 
     Returns:
-        face: np.ndarray
-            The cropped face, resized to 256x256.
-            If no face is detected, the original image is returned, resized to 256x256.
+        box: tuple
+            (x, y, w, h) clamped to the frame, or None if no face was found.
     """
 
-    # Convert the image to the grayscale color space
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Detect faces in the image
     faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
     if len(faces) == 0:
-        return cv2.resize(image, (256, 256))
+        return None
 
-    # Get the first face
-    x, y, w, h = faces[0]
+    # The largest detection is the one closest to the camera
+    x, y, w, h = max(faces, key=lambda face: face[2] * face[3])
 
-    # Add padding
-    x -= padding
-    y -= padding
-    w += padding * 2
-    h += padding * 2
+    frame_height, frame_width = image.shape[:2]
+    x = max(0, x - padding)
+    y = max(0, y - padding)
+    w = min(frame_width - x, w + padding * 2)
+    h = min(frame_height - y, h + padding * 2)
 
-    # Crop
-    face = image[y : y + h, x : x + w]
-
-    # Resize the face to 256x256
-    try:
-        face = cv2.resize(face, (256, 256))
-    except:
-        return cv2.resize(image, (256, 256))
-
-    return face
+    return x, y, w, h
 
 
-def draw_face_boundary(image: np.ndarray, border_size: int = 2) -> np.ndarray:
+def segment_alpha(image: np.ndarray, segmentor) -> np.ndarray:
     """
-    Draw the boundary of the detected face.
+    Build an alpha channel that keeps the person and drops the background.
 
-    Args:
+    Parameters:
         image: np.ndarray
-            The image to draw the boundary on.
-        border_size: int
-            The size of the border. Default is 2.
+            The BGR frame.
+        segmentor: SelfieSegmentation
+            The segmentation model.
 
     Returns:
-        image: np.ndarray
-            The image with the boundary drawn.
+        alpha: np.ndarray
+            uint8 mask the same size as the frame, 255 where the person is.
     """
 
-    # Convert the image to the grayscale color space
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    frame_height, frame_width = image.shape[:2]
 
-    # Detect faces in the image
-    edges = cv2.Canny(gray, 100, 200)
+    # Segment at a reduced width; the mask is upscaled back afterwards
+    scale_height = max(1, int(SEGMENTATION_WIDTH * frame_height / frame_width))
+    small = cv2.resize(image, (SEGMENTATION_WIDTH, scale_height))
 
-    # Find contours
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
+    result = segmentor.process(cv2.cvtColor(small, cv2.COLOR_BGR2RGB))
+    mask = result.segmentation_mask
 
-    cv2.drawContours(image, contours, -1, (50, 50, 50, 255), border_size)
+    if mask is None:
+        return np.full((frame_height, frame_width), 255, np.uint8)
 
-    return image
+    mask = cv2.resize(mask, (frame_width, frame_height))
+    alpha = np.where(mask > MASK_THRESHOLD, 255, 0).astype(np.uint8)
+
+    # Soften the edge so the cutout doesn't look cut with scissors
+    return cv2.GaussianBlur(alpha, (7, 7), 0)
 
 
-def remove_background(
-    image: np.ndarray, segmentor: SelfiSegmentation, bg_color: tuple
+def add_outline(
+    cutout: np.ndarray,
+    thickness: int = OUTLINE_THICKNESS,
+    color: tuple = OUTLINE_COLOR,
 ) -> np.ndarray:
     """
-    Remove the background from the image.
+    Draw a solid border around the visible part of a cutout.
 
-    Args:
-        image: np.ndarray
-            The image to remove the background from.
-        segmentor: SelfiSegmentation
-            The SelfiSegmentation object.
-        bg_color: tuple
-            The background color.
+    Parameters:
+        cutout: np.ndarray
+            The BGRA image to outline.
+        thickness: int
+            Border width in pixels.
+        color: tuple
+            Border colour as BGR.
 
     Returns:
-        image: np.ndarray
-            The image with the background removed.
+        outlined: np.ndarray
+            A copy of the cutout with the border drawn into it.
     """
 
-    # Remove the background
-    image = segmentor.removeBG(image, bg_color)
+    alpha = cutout[:, :, 3]
+    solid = (alpha > 127).astype(np.uint8)
 
-    return image
+    if solid.max() == 0:
+        return cutout.copy()
+
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE, (thickness * 2 + 1, thickness * 2 + 1)
+    )
+    grown = cv2.dilate(solid, kernel)
+
+    # The ring is everything the dilation added around the subject
+    ring = (grown > 0) & (solid == 0)
+
+    outlined = cutout.copy()
+    outlined[ring] = (color[0], color[1], color[2], 255)
+    return outlined
 
 
-def pipline(
-    image: np.ndarray,
-    segmentor: SelfiSegmentation,
-    bg_color: tuple,
-    face_cascade: cv2.CascadeClassifier,
+def cutout_coverage(cutout: np.ndarray) -> float:
+    """
+    Fraction of the cutout that is visible rather than transparent.
+
+    Parameters:
+        cutout: np.ndarray
+            The BGRA image.
+
+    Returns:
+        coverage: float
+            0.0 when nothing was segmented, 1.0 when the whole frame is.
+    """
+
+    return float((cutout[:, :, 3] > 127).mean())
+
+
+def center_square(image: np.ndarray) -> np.ndarray:
+    """
+    Crop the largest centred square from a frame.
+
+    Used when no face is detected, so the fallback keeps the aspect ratio
+    instead of squashing the whole frame into a square.
+
+    Parameters:
+        image: np.ndarray
+            The image to crop.
+
+    Returns:
+        cropped: np.ndarray
+            The centred square crop.
+    """
+
+    height, width = image.shape[:2]
+    side = min(height, width)
+    top = (height - side) // 2
+    left = (width - side) // 2
+    return image[top : top + side, left : left + side]
+
+
+def capture_face_cutout(
+    image: np.ndarray, segmentor, face_cascade, size: int = CUTOUT_SIZE
 ) -> np.ndarray:
     """
-    The pipeline to process the image.
+    Turn a camera frame into a square BGRA cutout of the person.
 
-    Args:
+    Parameters:
         image: np.ndarray
-            The image to process.
-        segmentor: SelfiSegmentation
-            The SelfiSegmentation object.
-        bg_color: tuple
-            The background color.
+            The BGR frame.
+        segmentor: SelfieSegmentation
+            The segmentation model.
         face_cascade: cv2.CascadeClassifier
-            The face cascade classifier.
+            The face detector.
+        size: int
+            Side length of the returned square image.
 
     Returns:
-        image: np.ndarray
-            The processed image.
+        cutout: np.ndarray
+            size x size BGRA image; the background is fully transparent.
     """
 
-    # Remove the background
-    image = remove_background(image, segmentor, bg_color)
+    alpha = segment_alpha(image, segmentor)
 
-    # Detect the face
-    face = detect_face(image, face_cascade)
+    box = detect_face_box(image, face_cascade)
+    if box is not None:
+        x, y, w, h = box
+        image = image[y : y + h, x : x + w]
+        alpha = alpha[y : y + h, x : x + w]
+    else:
+        # No face found, so keep a centred square rather than squashing the
+        # whole frame into one
+        image = center_square(image)
+        alpha = center_square(alpha)
 
-    # Draw the boundary of the face
-    face = draw_face_boundary(face)
+    if image.size == 0:
+        return np.zeros((size, size, 4), np.uint8)
 
-    return face
+    image = cv2.resize(image, (size, size))
+    alpha = cv2.resize(alpha, (size, size))
+
+    cutout = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+    cutout[:, :, 3] = alpha
+    return add_outline(cutout)
+
+
+def encode_png(cutout: np.ndarray) -> bytes:
+    """
+    Encode a BGRA cutout as PNG bytes, keeping the transparency.
+
+    Parameters:
+        cutout: np.ndarray
+            The BGRA image.
+
+    Returns:
+        data: bytes
+            PNG encoded image, or empty bytes if encoding failed.
+    """
+
+    encoded, buffer = cv2.imencode(".png", cutout)
+    return buffer.tobytes() if encoded else b""
 
 
 def demo() -> None:
     """
-    Run the face capture demo.
-    """
-    segmentor, bg_color, face_cascade = init_face_capture()
+    Show the live cutout with a checkerboard behind it.
 
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
+    segmentor, face_cascade = initialize_face_capture()
     cap = cv2.VideoCapture(0)
 
     while True:
-        success, img = cap.read()
+        read_ok, frame = cap.read()
+        if not read_ok:
+            break
 
-        img = pipline(img, segmentor, bg_color, face_cascade)
+        cutout = capture_face_cutout(cv2.flip(frame, 1), segmentor, face_cascade)
 
-        cv2.imshow("Image", img)
+        # Composite over a checkerboard so the transparency is visible
+        board = np.zeros((CUTOUT_SIZE, CUTOUT_SIZE, 3), np.uint8)
+        tile = 16
+        board[:, :] = (60, 60, 60)
+        for row in range(0, CUTOUT_SIZE, tile):
+            for col in range(0, CUTOUT_SIZE, tile):
+                if (row // tile + col // tile) % 2 == 0:
+                    board[row : row + tile, col : col + tile] = (100, 100, 100)
 
+        alpha = cutout[:, :, 3:4] / 255.0
+        preview = (cutout[:, :, :3] * alpha + board * (1 - alpha)).astype(np.uint8)
+
+        cv2.imshow("Face cutout", preview)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
