@@ -1387,8 +1387,13 @@ class Game:
             self.balloons_game_bg_image
         )
 
-        # Initialize the pin image
-        self.pin_image = pygame.image.load(f"{CWD}/resources/images/pin.png")
+        # Initialize the pin image. convert_alpha() matches the pixel format
+        # SDL actually renders in, so every blit is a fast same-format copy
+        # instead of a slow per-pixel format translation - loaded/scaled once
+        # here and reused every frame, so this cost is paid only once.
+        self.pin_image = pygame.image.load(
+            f"{CWD}/resources/images/pin.png"
+        ).convert_alpha()
 
         # Make the pin image smaller
         self.pin_image = pygame.transform.scale(self.pin_image, (70, 70))
@@ -1535,8 +1540,12 @@ class Game:
 
         def scaled_balloon_image(path):
             if path not in balloon_images:
+                # convert_alpha() matches SDL's actual rendering pixel format,
+                # so the many per-frame blits of this cached, reused surface
+                # are a fast same-format copy instead of a slow per-pixel
+                # format translation - paid once here, not once per blit.
                 balloon_images[path] = pygame.transform.scale(
-                    pygame.image.load(path), (250, 250)
+                    pygame.image.load(path).convert_alpha(), (250, 250)
                 )
             return balloon_images[path]
 
@@ -1753,8 +1762,17 @@ class Game:
             if frame is not None:
                 self.camera_image = frame
 
-            # Get the right and left hand centers
-            hands_data = detect_hands(self.finger_detector, self.camera_image)
+            # Get the right and left hand centers. self.camera_image is RGB
+            # (capture_scaled_frame already converted it for display), but
+            # cvzone's findHands (called inside detect_hands) converts
+            # BGR->RGB internally, per its own "Finds hands in a BGR image"
+            # contract - feeding it RGB directly converts it a second time and
+            # hands mediapipe channel-swapped data, silently breaking
+            # detection. Convert back to BGR first so it lands on true RGB
+            # internally; detect_hands doesn't draw onto or return this image,
+            # so there's nothing to convert back for display.
+            bgr_for_tracking = cv2.cvtColor(self.camera_image, cv2.COLOR_RGB2BGR)
+            hands_data = detect_hands(self.finger_detector, bgr_for_tracking)
             try:
                 fingers_centers_right = hands_data["right_hand"]["fingers_centers"]
             except (KeyError, TypeError):
@@ -2219,8 +2237,17 @@ class Game:
             is_left_hand = False
             is_right_hand = False
 
-            # Get the hands data
-            self.camera_image = self.hand_tracking.findFingers(self.camera_image)
+            # Get the hands data. self.camera_image is RGB (capture_scaled_frame
+            # already converted it, since that's also what gets displayed) but
+            # findFingers converts BGR->RGB internally to match its own
+            # standalone-script contract - feeding it RGB directly would
+            # convert it a second time and hand mediapipe channel-swapped data,
+            # silently breaking detection. Round-trip through BGR so findFingers
+            # gets what it expects and lands on true RGB again, and convert its
+            # (landmark-annotated) result back to RGB for display.
+            bgr_for_tracking = cv2.cvtColor(self.camera_image, cv2.COLOR_RGB2BGR)
+            bgr_for_tracking = self.hand_tracking.findFingers(bgr_for_tracking)
+            self.camera_image = cv2.cvtColor(bgr_for_tracking, cv2.COLOR_BGR2RGB)
             hands_data = self.hand_tracking.findPosition(
                 self.camera_image, self.camera_image.shape[1]
             )

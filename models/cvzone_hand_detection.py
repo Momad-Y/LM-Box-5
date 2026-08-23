@@ -17,8 +17,12 @@ def initialize_hand_detector(detection_con: float = 0.9) -> HandDetector:
             The HandDetector object.
     """
 
-    # Initializing the HandDetector object and the video capture object
-    detector = HandDetector(maxHands=2, detectionCon=detection_con)
+    # modelComplexity=0 is the lite model - cvzone's HandDetector defaults to
+    # the full model (1) when this isn't passed, which is markedly slower
+    # per frame for a game control input that doesn't need full accuracy
+    # (see models/pose_tracking.py's Pose(), which already opts into the
+    # lite model for the same reason).
+    detector = HandDetector(maxHands=2, detectionCon=detection_con, modelComplexity=0)
 
     return detector
 

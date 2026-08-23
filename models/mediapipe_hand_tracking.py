@@ -26,7 +26,20 @@ class HandTrackingDynamic:
         self.__detectionCon__ = detectionCon
         self.__trackCon__ = trackCon
         self.handsMp = mp.solutions.hands
-        self.hands = self.handsMp.Hands(max_num_hands=maxHands)
+        # model_complexity=0 is the lite model - mediapipe defaults to the
+        # full model (1) when this isn't passed, which is markedly slower
+        # per frame for a game control input that doesn't need full accuracy
+        # (see pose_tracking.py's Pose(), which already opts into the lite
+        # model for the same reason). min_detection/tracking_confidence were
+        # already accepted by this constructor but never actually passed
+        # through to Hands() - passing them now just makes the stored values
+        # take effect instead of being silently ignored.
+        self.hands = self.handsMp.Hands(
+            max_num_hands=maxHands,
+            model_complexity=0,
+            min_detection_confidence=detectionCon,
+            min_tracking_confidence=trackCon,
+        )
         self.mpDraw = mp.solutions.drawing_utils
         self.tipIds = [4, 8, 12, 16, 20]
 
