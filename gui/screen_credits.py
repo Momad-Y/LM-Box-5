@@ -24,6 +24,8 @@ CREDITS = (
     ("3D MODELS", "None. We could not afford the polygons"),
     ("LEGAL", "Totally not a dinosaur game anymore"),
     ("BUGS FIXED", "Most of them, probably"),
+    ("MINIMUM SPEC", "Dual-core 2GHz+, 4GB RAM, a webcam for Balloons/Pong"),
+    ("RECOMMENDED SPEC", "Quad-core 3GHz+, 8GB RAM, 720p+ webcam, no GPU needed"),
     ("PRIVACY", "100% local - camera, photo and scores never leave this device"),
     ("CONTACT MOHAMED", "mohamed.y.abdelnasser@gmail.com"),
     ("CONTACT ABDELRAHMAN", "abdosaaed749@gmail.com"),

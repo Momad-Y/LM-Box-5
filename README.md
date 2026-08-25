@@ -28,13 +28,34 @@ The project leverages real-time hand and body tracking using computer vision mod
 
 ## System Requirements
 
-- **Python**: 3.8 or later.
-- **Webcam**: required for **Balloons** and **Pong**, both played entirely
-  with hand tracking. **Runner** works without one too - it falls back to
-  the keyboard (Up/Space to jump, Down to duck) if no camera is found.
-- **CPU**: the hand/pose tracking (Mediapipe) runs on the CPU every frame,
-  so a reasonably modern multi-core CPU makes for noticeably smoother
-  tracking than an older or lower-power one. No GPU is required.
+The hand/pose tracking (Mediapipe) runs on the CPU every frame, so the CPU
+is what determines how smooth the games feel - no GPU is required or used.
+Figures below are informed by profiling the tracking pipeline directly
+(see `docs/PERFORMANCE_AUDIT.md`), not lab-tested across a hardware matrix.
+
+### Minimum
+
+- **OS**: Windows 10, macOS 11, or a modern Linux distro
+- **Python**: 3.8 or later (only if running from source)
+- **CPU**: dual-core, 2.0 GHz or better (roughly 2015 or newer)
+- **RAM**: 4 GB
+- **Webcam**: any UVC-compatible webcam, 480p or better - required for
+  **Balloons** and **Pong**, both played entirely with hand tracking.
+  **Runner** works without one too - it falls back to the keyboard
+  (Up/Space to jump, Down to duck) if no camera is found.
+- **Storage**: ~1.5 GB free, for the Python environment and dependencies
+
+### Recommended
+
+- **CPU**: quad-core, 3.0 GHz or better (roughly 2019 or newer) - keeps
+  tracking comfortably inside the game's 30 FPS frame budget even in busy
+  scenes
+- **RAM**: 8 GB
+- **Webcam**: 720p or better with decent low-light performance, for more
+  reliable hand/pose detection
+- **Display**: 1920x1080 - the games render onto a fixed 1920x1080 canvas
+  and scale to fit any window or monitor size, but a smaller display
+  letterboxes it down
 
 ## Installation
 
