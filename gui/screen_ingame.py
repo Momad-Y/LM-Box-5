@@ -471,8 +471,7 @@ def show_instructions(game, key, **substitutions):
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
+                game.quit_app()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return False
@@ -712,8 +711,7 @@ def show_privacy_notice(game):
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
+                game.quit_app()
             if event.type == pygame.KEYDOWN:
                 return
 
@@ -747,8 +745,7 @@ def show_no_camera(game, game_name):
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
+                game.quit_app()
             if event.type == pygame.KEYDOWN and event.key in (
                 pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER
             ):

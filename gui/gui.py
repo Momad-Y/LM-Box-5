@@ -320,9 +320,45 @@ class Game:
         events = pygame.event.get()
         for event in events:
             if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
+                self.quit_app()
         return events
+
+    def quit_app(self):
+        """Release the camera/mediapipe models, then end the process.
+
+        The one and only way this app should ever terminate. Every quit
+        path - the main menu's own quit action, pump_events' QUIT-event
+        handling, and every screen that still polls for QUIT itself
+        (show_instructions, show_privacy_notice, show_no_camera in
+        screen_ingame.py) - calls this instead of pygame.quit()+exit()
+        directly, so releasing resources can never be skipped by a future
+        exit path that forgets to duplicate it. There were 5 separate
+        pygame.quit()+exit() call sites before this, and none of them
+        released anything.
+
+        This isn't cosmetic: the camera used to just get left open,
+        actively streaming, for the process's entire life, then abruptly
+        cut off when it died instead of being stopped gracefully first -
+        on this app's actual hardware, that was enough to hang the whole
+        machine, not just the app, requiring a hard reboot. See
+        docs/PERFORMANCE_AUDIT.md's note on this incident.
+        """
+        if getattr(self, "cap", None) is not None:
+            self.cap.release()
+
+        for detector in (
+            getattr(self, "hand_tracking", None),
+            getattr(self, "finger_detector", None),
+        ):
+            hands = getattr(detector, "hands", None)
+            if hands is not None:
+                hands.close()
+
+        if getattr(self, "pose_detector", None) is not None:
+            self.pose_detector.close()
+
+        pygame.quit()
+        exit()
 
     def draw_fps(self):
         """Draw the frame rate in the corner when the setting is enabled."""
@@ -1340,7 +1376,7 @@ class Game:
             if handler is not None:
                 handler()
 
-        pygame.quit()
+        self.quit_app()
 
     def start_main_menu(self):
         """Show the main menu and return the action the player chose."""
