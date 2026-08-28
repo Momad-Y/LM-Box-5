@@ -1093,14 +1093,6 @@ class Game:
         # Set the camera frame rate
         self.cap.set(cv2.CAP_PROP_FPS, 30)
 
-        # Ask the driver to keep at most one frame queued. Without this,
-        # a backend that buffers internally can hand back a stale queued
-        # frame instead of blocking for the true latest one whenever
-        # per-frame CPU work runs slower than the camera's native frame
-        # interval - not every backend honors this, but it's a no-op where
-        # it isn't, not a regression.
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
         # Initialize the camera image
         self.camera_image = None
 

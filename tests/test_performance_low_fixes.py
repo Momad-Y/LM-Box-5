@@ -1,7 +1,8 @@
-"""Tests for the 5 Low-severity fixes in docs/PERFORMANCE_AUDIT.md: the FPS
+"""Tests for the Low-severity fixes in docs/PERFORMANCE_AUDIT.md: the FPS
 counter's uncached font, camera_feed_rect() recomputing every call, Runner's
-redundant per-frame get_ticks() calls, Runner's own sprite images reloading
-on every restart, and cv2.CAP_PROP_BUFFERSIZE.
+redundant per-frame get_ticks() calls, and Runner's own sprite images
+reloading on every restart. Also covers the CAP_PROP_BUFFERSIZE fix, which
+was reverted after causing a real-hardware regression - see that section.
 """
 import ast
 from unittest.mock import MagicMock, patch
@@ -115,14 +116,24 @@ def test_runner_sprite_cache_still_produces_correctly_shaped_images(game):
 
 
 # -------------------------------------------- fix 15: CAP_PROP_BUFFERSIZE
-def test_init_camera_sets_buffersize_to_one():
+# REVERTED (2026-08-28): CAP_PROP_BUFFERSIZE=1 was applied preemptively
+# since this sandbox has no real camera to verify it against. On real
+# hardware it caused a severe regression (all three games dropped from
+# ~8fps to ~4fps; the only unaffected screen was Credits, which never
+# touches the camera) - on this backend/driver, forcing a 1-frame buffer
+# apparently makes cap.read() block for a genuinely fresh capture instead
+# of returning an already-queued frame, turning every frame's camera read
+# into a real wait tied to the camera's native cadence. Locked in as a
+# "must not reappear" test, not just quietly dropped, so this isn't
+# reapplied without someone remembering why it was pulled.
+def test_init_camera_does_not_set_buffersize():
     src = open("gui/gui.py").read()
     game_class = _game_class(src)
     body_src = _method_source(game_class, src, "init_camera")
-    assert "self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)" in body_src
+    assert "CAP_PROP_BUFFERSIZE" not in body_src
 
 
-def test_init_camera_actually_calls_set_with_buffersize(sandboxed_data_dir):
+def test_init_camera_does_not_call_set_with_buffersize(sandboxed_data_dir):
     Game = sandboxed_data_dir.Game
     Game.run = lambda self: None
 
@@ -132,4 +143,4 @@ def test_init_camera_actually_calls_set_with_buffersize(sandboxed_data_dir):
         game = Game()
 
     calls = [c.args for c in fake_cap.set.call_args_list]
-    assert (__import__("cv2").CAP_PROP_BUFFERSIZE, 1) in calls
+    assert (__import__("cv2").CAP_PROP_BUFFERSIZE, 1) not in calls
