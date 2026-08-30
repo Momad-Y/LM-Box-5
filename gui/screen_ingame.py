@@ -480,7 +480,7 @@ def show_instructions(game, key, **substitutions):
                     return True
 
         _draw_instructions(game, title, rules, caption, key)
-        game.clock.tick(30)
+        game.clock.tick(60)
 
 
 def _draw_instructions(game, title, rules, caption, key):
@@ -716,7 +716,7 @@ def show_privacy_notice(game):
                 return
 
         draw_privacy_notice(game)
-        game.clock.tick(30)
+        game.clock.tick(60)
 
 
 def draw_privacy_notice(game):
@@ -752,7 +752,7 @@ def show_no_camera(game, game_name):
                 return
 
         draw_no_camera(game, game_name)
-        game.clock.tick(30)
+        game.clock.tick(60)
 
 
 def draw_no_camera(game, game_name):

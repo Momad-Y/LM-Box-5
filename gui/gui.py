@@ -35,6 +35,7 @@ from screeninfo import get_monitors
 
 from gui.utils import random_bool_by_chance, biased_random_int, resize_cover
 from gui.runner_sprites import Runner, Cactus, Ptero, Cloud, ground_line_offset
+from gui.camera_stream import ThreadedCapture
 from gui import ui_kit as ui
 from gui import (
     screen_menu,
@@ -80,10 +81,12 @@ CAMERA_CAPTURE_HEIGHT = 480
 POSE_DETECT_WIDTH = 480
 
 # All three games' movement was originally tuned per loop iteration at this
-# rate. frame_dt_scale() converts a measured frame time back into "how many
-# of these nominal frames' worth of movement should happen", so speed stays
-# correct in real time on hardware that can't actually sustain this rate.
-TARGET_FPS = 30
+# rate (30, until the performance audit + threaded camera capture in
+# docs/PERFORMANCE_AUDIT.md made 60 achievable). frame_dt_scale() converts
+# a measured frame time back into "how many of these nominal frames' worth
+# of movement should happen", so speed stays correct in real time on
+# hardware that can't actually sustain this rate.
+TARGET_FPS = 60
 
 # Upper bound on how large a single frame's dt is allowed to count as, in
 # frame_dt_scale(). Without this, one bad hitch (a GC pause, an alt-tab, a
@@ -91,7 +94,16 @@ TARGET_FPS = 30
 # step that a collision check between two rects could skip over each other
 # entirely - capping it means a real, sustained slowdown still scales
 # proportionally, but a one-off stutter can't teleport anything.
-MAX_FRAME_DT = 1 / 15
+#
+# Scales with TARGET_FPS (always 1/2 of it) rather than being a fixed wall-
+# clock constant, so the worst-case dt_scale (MAX_FRAME_DT * TARGET_FPS)
+# stays 2.0x regardless of the target rate - the ceiling Pong's ball-speed
+# displacement clamp and Runner's obstacle-collision margin were both
+# verified safe against (see gui/runner_sprites.py's Obstacle.update -
+# a naive 4.0x ceiling at 60 FPS, i.e. leaving this at the old 30-FPS-era
+# 1/15 unchanged, was measured to put worst-case obstacle displacement
+# right at the edge of tunnelling clean through a cactus).
+MAX_FRAME_DT = 2 / TARGET_FPS
 
 # Every in-game screen is drawn onto a canvas of this fixed size and then
 # scaled onto the window, which makes the layout independent of the window -
@@ -323,6 +335,34 @@ class Game:
                 self.quit_app()
         return events
 
+    def release_resources(self):
+        """Release the camera and close the mediapipe models, without
+        touching pygame or the process.
+
+        Split out from quit_app() so a test fixture that builds a real
+        Game() (real mediapipe Hands/Pose objects, each backed by a GPU
+        context on this machine's Mesa/Intel driver) can release the same
+        resources at teardown without also tearing down pygame or the
+        process - constructing 100+ of these across a full test run and
+        never releasing any of them was itself enough to freeze this
+        laptop hard, the same way the original unreleased-camera bug did.
+        See quit_app()'s docstring and docs/PERFORMANCE_AUDIT.md's
+        incident note.
+        """
+        if getattr(self, "cap", None) is not None:
+            self.cap.release()
+
+        for detector in (
+            getattr(self, "hand_tracking", None),
+            getattr(self, "finger_detector", None),
+        ):
+            hands = getattr(detector, "hands", None)
+            if hands is not None:
+                hands.close()
+
+        if getattr(self, "pose_detector", None) is not None:
+            self.pose_detector.close()
+
     def quit_app(self):
         """Release the camera/mediapipe models, then end the process.
 
@@ -343,20 +383,7 @@ class Game:
         machine, not just the app, requiring a hard reboot. See
         docs/PERFORMANCE_AUDIT.md's note on this incident.
         """
-        if getattr(self, "cap", None) is not None:
-            self.cap.release()
-
-        for detector in (
-            getattr(self, "hand_tracking", None),
-            getattr(self, "finger_detector", None),
-        ):
-            hands = getattr(detector, "hands", None)
-            if hands is not None:
-                hands.close()
-
-        if getattr(self, "pose_detector", None) is not None:
-            self.pose_detector.close()
-
+        self.release_resources()
         pygame.quit()
         exit()
 
@@ -767,7 +794,7 @@ class Game:
                         step(active_slot, -1)
 
             self._draw_player_picker(game_title, slot_labels, chosen, active_slot)
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def draw_game_over(self, background, headline, entries, hint, headline_color=None):
         """Draw the end-of-round panel shared by all three games.
@@ -979,7 +1006,7 @@ class Game:
             )
 
             self.present()
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def ask_yes_no(self, question, lines=()):
         """Ask a yes/no question on the canvas. Returns True for yes."""
@@ -995,7 +1022,7 @@ class Game:
                 question, list(lines) + ["", "Y or ENTER for yes, N or ESC for no"]
             )
             self.present()
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def capture_user_face(self, user_id, user_name):
         """Show a live cutout preview and store it when the player confirms.
@@ -1044,7 +1071,7 @@ class Game:
 
             read_ok, frame = self.cap.read()
             if not read_ok or frame is None:
-                self.clock.tick(30)
+                self.clock.tick(60)
                 continue
 
             frame = cv2.flip(frame, 1)
@@ -1102,32 +1129,67 @@ class Game:
                 )
 
             self.present()
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def init_camera(self):
         # Initialize the camera
-        self.cap = cv2.VideoCapture(self.user_camera_number)
+        stream = cv2.VideoCapture(self.user_camera_number)
 
         # Check if the camera is opened
-        if not self.cap.isOpened():
+        if not stream.isOpened():
             print("Trying alternate camera index 1")
-            self.cap = cv2.VideoCapture(1)
-            if not self.cap.isOpened():
+            stream = cv2.VideoCapture(1)
+            if not stream.isOpened():
                 print("Trying alternate camera index 2")
-                self.cap = cv2.VideoCapture(2)
-            if not self.cap.isOpened():
+                stream = cv2.VideoCapture(2)
+            if not stream.isOpened():
                 print("WARNING: Could not open any camera. Some features may not work properly.")
+
+        # MJPG lets the camera compress each frame on-device before
+        # sending it, instead of streaming raw YUYV - this webcam is
+        # already known to be bandwidth-limited (see the resolution
+        # comment below: it can't sustain more than ~10 FPS at 720p in
+        # its default format), and MJPG needs far less USB bandwidth per
+        # frame at the same resolution/rate. Must be set before
+        # resolution/FPS below - some backends silently ignore it if set
+        # after. Verified via a readback rather than trusting the set()
+        # call's own return value (the lesson the buffer-size regression
+        # taught this session, see docs/PERFORMANCE_AUDIT.md) - but a
+        # readback only proves the driver *accepted* the request, not
+        # that it actually improved real delivered framerate. This needs
+        # the same real-hardware confirmation that earlier regression did
+        # before being trusted.
+        mjpg = cv2.VideoWriter_fourcc(*"MJPG")
+        stream.set(cv2.CAP_PROP_FOURCC, mjpg)
+        if int(stream.get(cv2.CAP_PROP_FOURCC)) != mjpg:
+            print("NOTE: camera did not accept MJPG capture format, staying on its default")
 
         # Set the camera resolution. Requesting the full screen resolution
         # made the webcam negotiate 1280x720, which it can only deliver at
-        # ~10 FPS - that capped every game's loop, since each frame blocks on
-        # cap.read(). 640x480 streams at 30 FPS and is still more detail than
-        # the tracking (which downscales anyway) needs.
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_CAPTURE_WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_CAPTURE_HEIGHT)
+        # ~10 FPS in its default (YUYV) format - that capped every game's
+        # loop before ThreadedCapture existed, since each frame used to
+        # block on cap.read() directly. 640x480 was measured to hold ~30 FPS
+        # in that same default format, and is still more detail than the
+        # tracking (which downscales anyway) needs. Whether this specific
+        # camera can actually sustain 60 FPS at 640x480 - with MJPG, without
+        # it, or at all - hasn't been measured on real hardware; asking for
+        # TARGET_FPS below is a request, not a guarantee, which is exactly
+        # why ThreadedCapture exists: the game loop no longer depends on the
+        # camera actually delivering whatever rate is requested here.
+        stream.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_CAPTURE_WIDTH)
+        stream.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_CAPTURE_HEIGHT)
 
         # Set the camera frame rate
-        self.cap.set(cv2.CAP_PROP_FPS, 30)
+        stream.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+
+        # Wrap in a background-thread reader so every game loop's
+        # self.cap.read() never blocks on the camera's own capture
+        # cadence (see gui/camera_stream.py) - every existing call site
+        # (capture_scaled_frame, Runner's own direct read, quit_app's
+        # release, test fixtures that substitute self.cap wholesale)
+        # keeps working unchanged, since this matches cv2.VideoCapture's
+        # own interface exactly.
+        self.cap = ThreadedCapture(stream)
 
         # Initialize the camera image
         self.camera_image = None
@@ -1785,7 +1847,7 @@ class Game:
                 self.draw_balloons_hud(time_left=None)
                 self.present()
 
-            self.clock.tick(30)
+            self.clock.tick(60)
 
             if time_remaining <= 0:
                 break
@@ -2001,7 +2063,7 @@ class Game:
             self.present()
 
             # Update the clock and delta time
-            self.dt = self.clock.tick(30) / 1000
+            self.dt = self.clock.tick(60) / 1000
 
     def end_balloons_game(self):
         self.balloon_game_over_sound.play()
@@ -2039,7 +2101,7 @@ class Game:
                     if event.key == pygame.K_ESCAPE:
                         return
 
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def init_pong_game(self):
         self.sync_screen_size()
@@ -2322,7 +2384,7 @@ class Game:
                 "BOTH PLAYERS INSIDE THE FRAME",
                 viewport=screen_ingame.corner_viewport(self),
             )
-            self.clock.tick(30)
+            self.clock.tick(60)
 
             if time_remaining <= 0:
                 break
@@ -2571,7 +2633,7 @@ class Game:
             self.present()
 
             # Update the clock and delta time
-            self.dt = self.clock.tick(30) / 1000
+            self.dt = self.clock.tick(60) / 1000
 
     def draw_pong_hud(self, left_hand_seen, right_hand_seen):
         """The title, both scoreboards, and the target score.
@@ -2641,7 +2703,7 @@ class Game:
                     if event.key == pygame.K_ESCAPE:
                         return
 
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def init_runner_game(self):
         self.sync_screen_size()
@@ -2840,7 +2902,7 @@ class Game:
                     ),
                 ),
             )
-            self.clock.tick(30)
+            self.clock.tick(60)
 
             if time_remaining <= 0:
                 break
@@ -2873,7 +2935,7 @@ class Game:
                 "THE LINES ARE AT THEIR DEFAULT HEIGHTS",
             )
             self.present()
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def start_runner_game(self):
         while True:
@@ -3051,10 +3113,11 @@ class Game:
             self.draw_runner_hud()
             self.present()
 
-            # Update the clock and delta time. 30 FPS matches Balloons/Pong
-            # and the camera's actual streaming rate - each loop blocks on
-            # cap.read(), so a higher target wouldn't be reached anyway.
-            self.dt = self.clock.tick(30) / 1000
+            # Update the clock and delta time. Matches Balloons/Pong -
+            # self.cap.read() no longer blocks (see ThreadedCapture in
+            # gui/camera_stream.py), so this loop isn't tied to the
+            # camera's own capture rate anymore.
+            self.dt = self.clock.tick(60) / 1000
 
     def draw_runner_camera(self, frame):
         """The feed in the top-right, or a keyboard hint when there is none."""
@@ -3149,7 +3212,7 @@ class Game:
                         # timer/game/end-game stack frames on every replay).
                         return "restart"
 
-            self.clock.tick(30)
+            self.clock.tick(60)
 
     def change_setting(self, key, value):
         """Store a setting, apply it immediately and persist it to disk."""

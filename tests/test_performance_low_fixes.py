@@ -134,13 +134,27 @@ def test_init_camera_does_not_set_buffersize():
 
 
 def test_init_camera_does_not_call_set_with_buffersize(sandboxed_data_dir):
+    import numpy as np
+
     Game = sandboxed_data_dir.Game
     Game.run = lambda self: None
 
     fake_cap = MagicMock()
     fake_cap.isOpened.return_value = True
+    # A real cv2.VideoCapture.read() always returns a (bool, ndarray) pair
+    # - configured explicitly here (a plain MagicMock() sentinel isn't
+    # unpackable) so ThreadedCapture's background thread has something
+    # real to read from init_camera() onward, same as a genuine camera.
+    fake_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+    fake_cap.get.return_value = 0
     with patch("cv2.VideoCapture", return_value=fake_cap):
         game = Game()
-
-    calls = [c.args for c in fake_cap.set.call_args_list]
-    assert (__import__("cv2").CAP_PROP_BUFFERSIZE, 1) not in calls
+    try:
+        calls = [c.args for c in fake_cap.set.call_args_list]
+        assert (__import__("cv2").CAP_PROP_BUFFERSIZE, 1) not in calls
+    finally:
+        # Built outside the `game` fixture, so nothing else closes this
+        # instance's real mediapipe models - see conftest.py's `game`
+        # fixture docstring for why leaving these open is not just a
+        # leak on this machine.
+        game.release_resources()

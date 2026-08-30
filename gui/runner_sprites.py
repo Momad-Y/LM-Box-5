@@ -35,6 +35,23 @@ PTERO_SCALE = 2.4
 # difference for ducking under a pterodactyl to be reliable.
 DUCK_HEIGHT_RATIO = 0.55
 
+# Absolute backstop on how far an obstacle can move in a single frame,
+# independent of runner_game_speed/dt_scale. Collision is only checked
+# once per frame (pygame.sprite.spritecollide in gui.py's start_runner_game),
+# so a big enough single-frame jump could skip clean over the runner's
+# hitbox without the two rects ever overlapping. The normal worst case
+# (runner_game_speed capped at 26, dt_scale capped at 2.0 by
+# gui.py's MAX_FRAME_DT) is 52px, comfortably under this - this clamp only
+# matters if that assumption is ever violated (e.g. TARGET_FPS raised
+# again without MAX_FRAME_DT scaling to match). Set below the narrowest
+# real combined obstacle+runner width, measured from the actual trimmed
+# sprites: ~105px for the widest cactus, ~119px for the ptero.
+MAX_OBSTACLE_DISPLACEMENT = 80
+
+
+def _clamp_displacement(pixels):
+    return max(-MAX_OBSTACLE_DISPLACEMENT, min(MAX_OBSTACLE_DISPLACEMENT, pixels))
+
 
 class Runner(pygame.sprite.Sprite):
     def __init__(self, pos_x, ground_y):
@@ -154,7 +171,7 @@ class Obstacle(pygame.sprite.Sprite):
         self.rect.y = pos_y
 
     def update(self, game_speed, kill_x=-100, dt_scale=1.0):
-        self.rect.x -= game_speed
+        self.rect.x -= _clamp_displacement(game_speed)
         if self.rect.right < kill_x:
             self.kill()
 
@@ -253,7 +270,7 @@ class Ptero(Obstacle):
             self.rect.bottom, self.rect.left = bottom, left
             self.animation_timer = 0
 
-        self.rect.x -= game_speed
+        self.rect.x -= _clamp_displacement(game_speed)
         if self.rect.right < kill_x:
             self.kill()
 
