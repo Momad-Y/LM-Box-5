@@ -39,16 +39,15 @@ Figures below are informed by profiling the tracking pipeline directly
 - **Python**: 3.8 or later (only if running from source)
 - **CPU**: dual-core, 2.0 GHz or better (roughly 2015 or newer)
 - **RAM**: 4 GB
-- **Webcam**: any UVC-compatible webcam, 480p or better - required for
-  **Balloons** and **Pong**, both played entirely with hand tracking.
-  **Runner** works without one too - it falls back to the keyboard
-  (Up/Space to jump, Down to duck) if no camera is found.
+- **Webcam**: any UVC-compatible webcam, 480p or better - required for all
+  three games. Balloons and Pong are played entirely with hand tracking,
+  Runner with body pose tracking; none of them has a keyboard fallback.
 - **Storage**: ~1.5 GB free, for the Python environment and dependencies
 
 ### Recommended
 
 - **CPU**: quad-core, 3.0 GHz or better (roughly 2019 or newer) - keeps
-  tracking comfortably inside the game's 30 FPS frame budget even in busy
+  tracking comfortably inside the game's 60 FPS frame budget even in busy
   scenes
 - **RAM**: 8 GB
 - **Webcam**: 720p or better with decent low-light performance, for more

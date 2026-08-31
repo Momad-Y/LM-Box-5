@@ -2708,6 +2708,13 @@ class Game:
     def init_runner_game(self):
         self.sync_screen_size()
 
+        # Runner is played entirely with body pose tracking, same as
+        # Balloons/Pong are with hand tracking - it used to also accept
+        # Up/Space/Down as a keyboard fallback when no camera was found,
+        # but no game in this app should have a manual-control path.
+        if not self.cap.isOpened():
+            return self.show_camera_required("Runner")
+
         players = self.select_players("RUNNER", ("Player",))
         if players is None:
             return
@@ -2984,15 +2991,10 @@ class Game:
                     else None,
                 )
 
-            # Handle keyboard controls too
-            keys = pygame.key.get_pressed()
-            keyboard_jump = keys[pygame.K_SPACE] or keys[pygame.K_UP]
-            keyboard_duck = keys[pygame.K_DOWN]
-
             # Update the runner
             self.runner_group.update(
-                pose_data["jump"] or keyboard_jump,
-                pose_data["duck"] or keyboard_duck,
+                pose_data["jump"],
+                pose_data["duck"],
                 jump_sound=self.runner_jump_sound,
                 dt_scale=dt_scale,
             )

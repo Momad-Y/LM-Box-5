@@ -20,7 +20,7 @@ ACTIONS = (
     ("ENTER", "RENAME", False),
     ("P", "PHOTO", False),
     ("C", "CLEAR PHOTO", False),
-    ("DEL", "DELETE", True),
+    ("D", "DELETE", True),
 )
 
 
@@ -40,26 +40,37 @@ def _card_size(width):
 
 
 def card_rects(surface, count):
-    """Rects for `count` cards laid out in the grid."""
+    """Rects for `count` cards laid out in the grid.
+
+    Each row is centered on its own actual card count rather than a fixed
+    4-column band - a full row of COLUMNS cards centers the same as before
+    (its width already matches the band), but a shorter last row (or the
+    single add-user card left alone on a new row) used to sit packed
+    against the left edge of that band instead of centered as a group.
+    """
     width, height = surface.get_size()
-    band, gap, card_width, card_height, *_ = _card_size(width)
+    _, gap, card_width, card_height, *_ = _card_size(width)
 
     rows = max(1, (count + COLUMNS - 1) // COLUMNS)
     total_height = rows * card_height + (rows - 1) * gap
     top = int(height * 0.49) - total_height // 2
-    left = (width - band) // 2
 
     rects = []
-    for index in range(count):
-        row, column = divmod(index, COLUMNS)
-        rects.append(
-            pygame.Rect(
-                left + column * (card_width + gap),
-                top + row * (card_height + gap),
-                card_width,
-                card_height,
+    for row in range(rows):
+        row_start = row * COLUMNS
+        row_count = min(COLUMNS, count - row_start)
+        row_width = row_count * card_width + (row_count - 1) * gap
+        row_left = (width - row_width) // 2
+
+        for column in range(row_count):
+            rects.append(
+                pygame.Rect(
+                    row_left + column * (card_width + gap),
+                    top + row * (card_height + gap),
+                    card_width,
+                    card_height,
+                )
             )
-        )
     return rects
 
 
@@ -218,7 +229,7 @@ def run(game):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return "quit"
+                game.quit_app()
 
             if event.type != pygame.KEYDOWN:
                 continue
@@ -271,7 +282,7 @@ def _user_action(game, key, user_id, user_name):
         game.capture_user_face(user_id, user_name)
     elif key == pygame.K_c:
         game.clear_user_face(user_id)
-    elif key in (pygame.K_DELETE, pygame.K_BACKSPACE):
+    elif key == pygame.K_d:
         if game.ask_yes_no(f"Delete {user_name}?", ("Their scores are removed too",)):
             game.delete_user(user_id)
 

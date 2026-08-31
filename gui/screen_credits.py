@@ -24,7 +24,7 @@ CREDITS = (
     ("3D MODELS", "None. We could not afford the polygons"),
     ("LEGAL", "Totally not a dinosaur game anymore"),
     ("BUGS FIXED", "Most of them, probably"),
-    ("MINIMUM SPEC", "Dual-core 2GHz+, 4GB RAM, a webcam for Balloons/Pong"),
+    ("MINIMUM SPEC", "Dual-core 2GHz+, 4GB RAM, a webcam for all 3 games"),
     ("RECOMMENDED SPEC", "Quad-core 3GHz+, 8GB RAM, 720p+ webcam, no GPU needed"),
     ("PRIVACY", "100% local - camera, photo and scores never leave this device"),
     ("CONTACT MOHAMED", "mohamed.y.abdelnasser@gmail.com"),
@@ -103,7 +103,6 @@ def draw(game, offset):
     surface.set_clip(previous_clip)
 
     ui.draw_hint(surface, "ESC TO GO BACK", game.font_path)
-    game.draw_fps()
     game.present()
 
 
@@ -139,7 +138,7 @@ def run(game):
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return "quit"
+                game.quit_app()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 return None
 

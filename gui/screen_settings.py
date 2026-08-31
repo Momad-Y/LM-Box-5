@@ -1,8 +1,16 @@
-"""The settings screen: three labelled panels instead of one long column.
+"""The settings screen: one scrolling-free column, grouped by section.
 
 Rows are declared as data below, so adding a setting is one entry in a list
 - there is no row count for the layout to fall out of step with. Every
 change writes straight through `change_setting`, which applies and saves it.
+
+Used to be three side-by-side panels (Audio/Camera/Gameplay) with Up/Down
+walking one flat list ordered panel-by-panel. That flat order didn't match
+the 2D layout: Audio only has 2 rows while Camera and Gameplay have 3, so
+pressing Down from Audio's last row jumped up and sideways into Camera's
+first row instead of moving to whatever was visually below it. A single
+column removes the mismatch entirely - the flat list's order and the
+on-screen order are the same thing, so Down is always "the next row down".
 """
 
 import pygame
@@ -81,21 +89,14 @@ PANELS = (
 ROWS = [row for _, rows in PANELS for row in rows]
 
 
-def _metrics(width):
-    band = int(width * 0.84)
-    gap = ui.cqw(2.4, width)
-    panel_width = (band - gap * (len(PANELS) - 1)) // len(PANELS)
-    return band, gap, panel_width
-
-
 class Metrics:
     """Every measurement the settings screen is laid out from.
 
-    Panel heights and row positions both come from here, so they cannot
+    Panel height and row positions both come from here, so they cannot
     disagree. They used to be worked out separately from the nominal font
     sizes, while the drawing used the fonts' real line heights and a switch
-    that is taller than a line of text - so the last control in a panel
-    overran the bottom padding and sat on the border.
+    that is taller than a line of text - so the last control overran the
+    bottom padding and sat on the border.
     """
 
     def __init__(self, game):
@@ -103,21 +104,29 @@ class Metrics:
         path = game.font_path
 
         self.width, self.height = width, height
-        self.pad = ui.cqw(1.4, width)
+        self.pad = ui.cqw(1.1, width)
         # The border is drawn inside the rect, so the padding has to sit
         # inside it as well. Without this the last control ended up closer
         # to the edge than the heading, by exactly the border's thickness.
         self.border = max(2, ui.cqw(0.3, width))
-        self.rule_gap = ui.cqw(0.5, width)
+        self.rule_gap = ui.cqw(0.4, width)
         self.rule_height = max(2, ui.cqw(0.2, width))
-        self.row_gap = ui.cqw(1.1, width)
-        self.label_gap = ui.cqw(0.45, width)
+        self.row_gap = ui.cqw(0.85, width)
+        # Space between one section's last row and the next section's
+        # heading - bigger than row_gap so the grouping still reads clearly
+        # now that every row lives in one column instead of separate boxes.
+        self.section_gap = ui.cqw(1.3, width)
+        self.label_gap = ui.cqw(0.35, width)
 
-        self.heading_size = ui.cqw(1.5, width)
-        self.label_size = ui.cqw(1.25, width)
-        self.value_size = ui.cqw(1.3, width)
-        self.meter_height = ui.cqw(1.1, width)
-        self.switch_height = self.value_size + ui.cqw(0.6, width)
+        # Sized smaller than the old 3-panel layout's fonts - stacking all
+        # 3 sections into one column means fitting 9 rows and 3 headings
+        # between the title and the hint instead of at most 3 rows, and
+        # this is the only screen with that much content in one column.
+        self.heading_size = ui.cqw(1.3, width)
+        self.label_size = ui.cqw(1.1, width)
+        self.value_size = ui.cqw(1.15, width)
+        self.meter_height = ui.cqw(0.95, width)
+        self.switch_height = self.value_size + ui.cqw(0.5, width)
 
         # Rendered line heights, which exceed the nominal point size
         self.heading_height = ui.font(path, self.heading_size).get_height()
@@ -138,37 +147,47 @@ class Metrics:
     def body_height(self, rows):
         return sum(self.row_height(row) for row in rows) + self.row_gap * (len(rows) - 1)
 
-    @property
-    def header_height(self):
-        """Border and top padding through to the first row's label."""
+    def section_height(self, rows):
+        """A section's heading, its rule, and all its rows - top to bottom."""
         return (
-            self.border + self.pad + self.heading_height
-            + self.rule_gap + self.rule_height + self.row_gap
+            self.heading_height + self.rule_gap + self.rule_height + self.row_gap
+            + self.body_height(rows)
         )
 
-    def panel_height(self, rows):
-        return self.header_height + self.body_height(rows) + self.pad + self.border
+    def content_height(self, panels):
+        return (
+            sum(self.section_height(rows) for _, rows in panels)
+            + self.section_gap * (len(panels) - 1)
+        )
+
+    def panel_height(self, panels):
+        return self.border + self.pad + self.content_height(panels) + self.pad + self.border
 
 
-def panel_rects(game):
-    """A rect per panel, all sharing a top edge."""
+def panel_rect(game):
+    """The one card every section is stacked inside.
+
+    Centered in the space between the title and the hint rather than at a
+    fixed screen percentage - stacking all 3 sections into one column makes
+    this panel far taller than any one of the old side-by-side panels ever
+    was, and a percentage anchored to screen center pushed its top edge up
+    into the title text once the panel got this tall.
+    """
     metrics = Metrics(game)
-    width = metrics.width
-    band, gap, panel_width = _metrics(width)
+    width, height = metrics.width, metrics.height
+    band = int(width * 0.44)
+    panel_height = metrics.panel_height(PANELS)
 
-    tallest = max(metrics.panel_height(rows) for _, rows in PANELS)
-    top = int(metrics.height * 0.52) - tallest // 2
+    title_bottom = ui.cqh(6.0, height) + ui.font(game.font_path, ui.cqw(2.9, width)).get_height()
+    hint_top = height - ui.cqh(5.0, height) - ui.font(game.font_path, ui.cqw(1.35, width)).get_height()
+
+    margin = ui.cqh(1.5, height)
+    top = (title_bottom + margin + hint_top - margin - panel_height) // 2
+    top = max(top, title_bottom + margin)
+
     left = (width - band) // 2
 
-    return [
-        pygame.Rect(
-            left + index * (panel_width + gap),
-            top,
-            panel_width,
-            metrics.panel_height(rows),
-        )
-        for index, (_, rows) in enumerate(PANELS)
-    ]
+    return pygame.Rect(left, top, band, panel_height)
 
 
 def draw(game, selected):
@@ -182,10 +201,14 @@ def draw(game, selected):
 
     metrics = Metrics(game)
     pad = metrics.pad
+    rect = panel_rect(game)
+    ui.draw_panel(surface, rect, fill_alpha=214)
 
+    y = rect.top + metrics.border + pad
     row_index = 0
-    for (title, rows), rect in zip(PANELS, panel_rects(game)):
-        ui.draw_panel(surface, rect, fill_alpha=214)
+    for section_index, (title, rows) in enumerate(PANELS):
+        if section_index > 0:
+            y += metrics.section_gap
 
         ui.draw_text(
             surface,
@@ -193,21 +216,23 @@ def draw(game, selected):
             game.font_path,
             metrics.heading_size,
             color=ui.SUN,
-            topleft=(rect.left + pad, rect.top + metrics.border + pad),
+            topleft=(rect.left + pad, y),
             letter_spacing=ui.cqw(0.14, width),
         )
-        rule_y = rect.top + metrics.border + pad + metrics.heading_height + metrics.rule_gap
+        rule_y = y + metrics.heading_height + metrics.rule_gap
         ui.fill_rect(
             surface,
             pygame.Rect(rect.left + pad, rule_y, rect.width - pad * 2, metrics.rule_height),
             ui.WHITE,
             52,
         )
+        y = rule_y + metrics.rule_height + metrics.row_gap
 
-        y = rect.top + metrics.header_height
-        for row in rows:
+        for row_offset, row in enumerate(rows):
             _draw_row(game, surface, metrics, row, rect, y, row_index == selected)
-            y += metrics.row_height(row) + metrics.row_gap
+            y += metrics.row_height(row)
+            if row_offset < len(rows) - 1:
+                y += metrics.row_gap
             row_index += 1
 
     ui.draw_hint(
@@ -299,7 +324,7 @@ def run(game):
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return "quit"
+                game.quit_app()
 
             if event.type != pygame.KEYDOWN:
                 continue

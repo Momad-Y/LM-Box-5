@@ -29,7 +29,6 @@ def test_readme_specs_cover_cpu_ram_and_webcam_for_both_tiers():
         assert "CPU" in section
         assert "RAM" in section
     assert "Webcam" in minimum
-    assert "keyboard" in minimum.lower()
 
 
 def test_credits_lists_minimum_and_recommended_spec():
