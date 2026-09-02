@@ -46,9 +46,11 @@ Figures below are informed by profiling the tracking pipeline directly
 
 ### Recommended
 
-- **CPU**: quad-core, 3.0 GHz or better (roughly 2019 or newer) - keeps
-  tracking comfortably inside the game's 60 FPS frame budget even in busy
-  scenes
+- **CPU**: quad-core, 3.0 GHz or better (roughly 2019 or newer). The games
+  render at up to 60 FPS; how close you get depends almost entirely on how
+  fast Mediapipe inference runs on your CPU, which is the largest single
+  cost in every frame. A 2021 mobile i7 measures ~38-48 FPS depending on
+  the game (see `docs/PERFORMANCE_AUDIT.md` for the per-game figures)
 - **RAM**: 8 GB
 - **Webcam**: 720p or better with decent low-light performance, for more
   reliable hand/pose detection

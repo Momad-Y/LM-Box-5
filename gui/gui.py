@@ -80,13 +80,28 @@ CAMERA_CAPTURE_HEIGHT = 480
 # nose-position heuristic doesn't need more detail than this.
 POSE_DETECT_WIDTH = 480
 
-# All three games' movement was originally tuned per loop iteration at this
-# rate (30, until the performance audit + threaded camera capture in
-# docs/PERFORMANCE_AUDIT.md made 60 achievable). frame_dt_scale() converts
-# a measured frame time back into "how many of these nominal frames' worth
-# of movement should happen", so speed stays correct in real time on
-# hardware that can't actually sustain this rate.
+# How many frames per second the game loop aims to render at. This is a
+# rendering target only - it deliberately does NOT appear in any movement
+# maths (see MOVEMENT_REFERENCE_FPS), so it can be raised or lowered
+# without changing how fast anything actually moves.
 TARGET_FPS = 60
+
+# The rate every game's per-frame movement constant (balloon speed, ball
+# speed, runner speed) was originally tuned at. frame_dt_scale() converts a
+# measured frame time into "how many of THESE frames' worth of movement
+# should happen", which is what keeps real-world speed identical whatever
+# frame rate the hardware actually sustains.
+#
+# Kept separate from TARGET_FPS, and this separation is the whole point:
+# real-world velocity works out to (tuned constant x whatever rate dt_scale
+# normalises against). When that was TARGET_FPS, raising the render target
+# from 30 to 60 silently doubled the intended speed of all three games, and
+# because the clamp below bounded dt_scale at 2.0 the actual speed then
+# varied with frame rate too (1.33x the original tuning at 20 FPS, rising
+# to a full 2x at 30 FPS and above) - so the games sped up as the machine
+# got faster. Normalising against the rate the constants were authored at
+# instead makes speed a property of the tuning, not of the frame rate.
+MOVEMENT_REFERENCE_FPS = 30
 
 # Upper bound on how large a single frame's dt is allowed to count as, in
 # frame_dt_scale(). Without this, one bad hitch (a GC pause, an alt-tab, a
@@ -95,15 +110,11 @@ TARGET_FPS = 60
 # entirely - capping it means a real, sustained slowdown still scales
 # proportionally, but a one-off stutter can't teleport anything.
 #
-# Scales with TARGET_FPS (always 1/2 of it) rather than being a fixed wall-
-# clock constant, so the worst-case dt_scale (MAX_FRAME_DT * TARGET_FPS)
-# stays 2.0x regardless of the target rate - the ceiling Pong's ball-speed
-# displacement clamp and Runner's obstacle-collision margin were both
-# verified safe against (see gui/runner_sprites.py's Obstacle.update -
-# a naive 4.0x ceiling at 60 FPS, i.e. leaving this at the old 30-FPS-era
-# 1/15 unchanged, was measured to put worst-case obstacle displacement
-# right at the edge of tunnelling clean through a cactus).
-MAX_FRAME_DT = 2 / TARGET_FPS
+# Anchored to MOVEMENT_REFERENCE_FPS (always 1/2 of it), so the worst-case
+# dt_scale stays 2.0x - the ceiling Pong's ball-speed displacement clamp and
+# Runner's obstacle-collision margin were both verified safe against (see
+# gui/runner_sprites.py's Obstacle.update).
+MAX_FRAME_DT = 2 / MOVEMENT_REFERENCE_FPS
 
 # Every in-game screen is drawn onto a canvas of this fixed size and then
 # scaled onto the window, which makes the layout independent of the window -
@@ -129,6 +140,16 @@ RUNNER_DUCK_UNDER_HEIGHT = 45
 # the full ramp to the speed cap at ~3 minutes - meant to be a normal part
 # of an average round, not a rare reward only exceptional-length runs see.
 RUNNER_SPEED_MILESTONE_POINTS = 40
+
+# How much quicker Runner scrolls than its original 30-FPS-era tuning.
+# The start speed, the cap and the per-milestone step are all scaled by
+# this one number so the ramp keeps its original shape - only its overall
+# pace changes. Bump it to make the whole game faster, drop it to slow it
+# down; nothing else needs touching.
+RUNNER_SPEED_SCALE = 1.2
+RUNNER_START_SPEED = 16 * RUNNER_SPEED_SCALE
+RUNNER_MAX_SPEED = 26 * RUNNER_SPEED_SCALE
+RUNNER_SPEED_STEP = 0.8 * RUNNER_SPEED_SCALE
 
 
 class Game:
@@ -308,18 +329,22 @@ class Game:
         return max(0.0, min(1.0, base_volume * self.sound_volume))
 
     def frame_dt_scale(self):
-        """How many nominal (1/TARGET_FPS) frames the last real frame was worth.
+        """How many nominal (1/MOVEMENT_REFERENCE_FPS) frames the last real
+        frame was worth.
 
         Multiply any per-frame movement/speed value by this so gameplay
         stays correct in real time regardless of the actual frame rate the
-        hardware sustains - 1.0 at exactly the target rate (today's tuned
-        feel, unchanged), higher on slower hardware, clamped so one bad
-        hitch can't move something so far in a single step that a collision
-        check skips over what it should have hit.
+        hardware sustains - 1.0 at exactly the reference rate (the tuned
+        feel), higher on slower hardware, clamped so one bad hitch can't
+        move something so far in a single step that a collision check skips
+        over what it should have hit.
+
+        Normalises against MOVEMENT_REFERENCE_FPS, not TARGET_FPS: the
+        render target must not be able to change how fast the games play.
         """
         if not self.dt:
             return 1.0
-        return min(self.dt, MAX_FRAME_DT) * TARGET_FPS
+        return min(self.dt, MAX_FRAME_DT) * MOVEMENT_REFERENCE_FPS
 
     def pump_events(self):
         """Fetch this frame's events, handling app quit here once.
@@ -1226,13 +1251,29 @@ class Game:
         way) and then just blitted every frame after - nothing about it
         changes during a round, so redoing the conversion every frame would
         be pure repeated work for the same pixels.
+
+        convert() is what makes that per-frame blit cheap, and it is not
+        optional here: frombuffer produces a surface in the buffer's own
+        format (with a per-pixel alpha channel, for the RGBA default), so
+        blitting it onto the canvas meant translating every one of 1920x1080
+        pixels into the canvas format AND alpha-blending them, every frame.
+        Profiling the real Balloons loop on the target hardware measured
+        that single background blit at 35ms of a 56ms frame - about 60% of
+        the entire frame budget, and the reason the games ran at ~18 FPS
+        while Credits (whose background was already convert()ed, see
+        get_prompt_background) sat at 60. Converted against self.screen
+        rather than the display, since the canvas - not the window - is
+        what these get blitted onto. The background is fully opaque
+        (RGB2RGBA sets alpha to 255 everywhere), so dropping the alpha
+        channel loses nothing; the camera feed drawn on top of it keeps its
+        own alpha regardless.
         """
         surface = pygame.image.frombuffer(
             image_array.tobytes(),
             (image_array.shape[1], image_array.shape[0]),
             mode,
         )
-        return pygame.transform.scale(surface, self.screen.get_size())
+        return pygame.transform.scale(surface, self.screen.get_size()).convert(self.screen)
 
     def capture_scaled_frame(self, ratio, flip=True):
         """Grab and process one camera frame, sized to 1/ratio of the canvas.
@@ -2761,10 +2802,13 @@ class Game:
                 (runner_game_bg_image.shape[1], runner_game_bg_image.shape[0]),
                 "RGB",
             )
+            # convert() for the same reason array_to_scaled_surface does it
+            # (see that method) - an unconverted background costs a
+            # full-canvas pixel-format translation on every single frame.
             self.runner_game_bg_image_pygame = pygame.transform.scale(
                 self.runner_game_bg_image_pygame,
                 self.screen.get_size(),
-            )
+            ).convert(self.screen)
 
             # Load the ground image (tiled and scrolled across the bottom),
             # scaled 1.5x to match the sprites so the ground line reads clearly
@@ -2845,7 +2889,9 @@ class Game:
         self.runner_best_score = self.get_best_score(self.current_player_id(0), "runner")
         # Pixels per frame at 30 FPS (~480 px/s scroll speed), scaled by the
         # difficulty setting
-        self.runner_game_speed = 16 * self.difficulty_modifiers["runner_speed"]
+        self.runner_game_speed = (
+            RUNNER_START_SPEED * self.difficulty_modifiers["runner_speed"]
+        )
         self.runner_ground_x = 0
         self.runner_obstacle_timer = pygame.time.get_ticks()
         self.runner_obstacle_spawn = True
@@ -3106,8 +3152,8 @@ class Game:
             milestone = int(self.runner_score) // RUNNER_SPEED_MILESTONE_POINTS
             if milestone > self.runner_speed_milestone:
                 self.runner_speed_milestone = milestone
-                if self.runner_game_speed < 26:
-                    self.runner_game_speed += 0.8
+                if self.runner_game_speed < RUNNER_MAX_SPEED:
+                    self.runner_game_speed += RUNNER_SPEED_STEP
                     self.runner_point_sound.play()
 
             # Title, score/best/speed and the player badge - draw_runner_hud
