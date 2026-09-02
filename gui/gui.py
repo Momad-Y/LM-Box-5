@@ -36,6 +36,7 @@ from screeninfo import get_monitors
 from gui.utils import random_bool_by_chance, biased_random_int, resize_cover
 from gui.runner_sprites import Runner, Cactus, Ptero, Cloud, ground_line_offset
 from gui.camera_stream import ThreadedCapture
+from gui.frame_clock import FrameClock
 from gui import ui_kit as ui
 from gui import (
     screen_menu,
@@ -246,8 +247,12 @@ class Game:
         # so it doesn't reset just because the app was restarted.
         self.instructions_seen = set(self.settings.get("instructions_seen", []))
 
-        # Initialize the clock for controlling the frame rate and delta time
-        self.clock = pygame.time.Clock()
+        # Initialize the clock for controlling the frame rate and delta time.
+        # Deliberately not pygame.time.Clock: its tick() truncates the target
+        # frame time to whole milliseconds, so tick(60) actually paces at up
+        # to 62.5 FPS (see gui/frame_clock.py). TARGET_FPS is handed over as
+        # a ceiling the individual tick(60) call sites cannot exceed.
+        self.clock = FrameClock(max_fps=TARGET_FPS)
         self.dt = 0
 
         # Initialize the font for the game
