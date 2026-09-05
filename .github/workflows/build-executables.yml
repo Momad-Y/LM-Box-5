@@ -65,7 +65,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: LMBox5-${{ matrix.label }}
-          path: bin/*
+          # Just the executable. bin/ also holds the README explaining how
+          # builds work, which is documentation for this repo and has no
+          # business being attached to a release as if it were a download.
+          path: |
+            bin/*
+            !bin/README.md
           if-no-files-found: error
 
   release:
