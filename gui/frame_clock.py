@@ -50,6 +50,8 @@ class FrameClock:
         self._last_tick = now
         self._next_frame_at = None
         self._recent = deque(maxlen=FPS_SAMPLE_FRAMES)
+        self._elapsed = 0.0
+        self._raw_elapsed = 0.0
 
     def tick(self, framerate=0):
         """Wait as needed to keep the loop at or under `framerate`.
@@ -59,16 +61,19 @@ class FrameClock:
         unaffected. A framerate of 0 means "no request of my own" - which
         still honours the clock's own ceiling, if it has one.
         """
+        entered_at = time.perf_counter()
+        # The frame's own work, before any waiting this call does - which
+        # is exactly what get_rawtime() reports.
+        self._raw_elapsed = entered_at - self._last_tick
+
         framerate = self._capped(framerate)
         if framerate > 0:
             frame_seconds = 1.0 / framerate
-            now = time.perf_counter()
 
             if self._next_frame_at is None:
-                self._next_frame_at = now + frame_seconds
+                self._next_frame_at = entered_at + frame_seconds
             else:
                 self._sleep_until(self._next_frame_at)
-                now = time.perf_counter()
                 # Advance from the deadline rather than from now, so a
                 # frame that wakes a hair late doesn't push every later
                 # frame later still (which would drift the cap downward).
@@ -76,14 +81,38 @@ class FrameClock:
                 # ...but if the loop is genuinely slower than the cap,
                 # resync instead of accumulating a debt it would later
                 # "repay" as a burst of zero-length frames.
-                if self._next_frame_at <= now:
-                    self._next_frame_at = now + frame_seconds
+                if self._next_frame_at <= time.perf_counter():
+                    self._next_frame_at = time.perf_counter() + frame_seconds
 
         now = time.perf_counter()
-        elapsed = now - self._last_tick
+        self._elapsed = now - self._last_tick
         self._last_tick = now
-        self._recent.append(elapsed)
-        return elapsed * 1000.0
+        self._recent.append(self._elapsed)
+        return self._elapsed * 1000.0
+
+    def tick_busy_loop(self, framerate=0):
+        """pygame's busy-wait variant of tick().
+
+        Present for interface parity. This clock already sleeps to just
+        short of the deadline and spins the remainder, so it needs no
+        separate busy-wait path - and pygame's own tick_busy_loop is not a
+        finer-grained tick anyway, it just hits the same whole-millisecond
+        target more precisely (see the module docstring).
+        """
+        return self.tick(framerate)
+
+    def get_time(self):
+        """Milliseconds the last completed frame took, waiting included.
+
+        Same contract as pygame's Clock.get_time() - the value the previous
+        tick() returned. The Credits scroll advances by this, so it has to
+        keep meaning "real time since the previous frame".
+        """
+        return self._elapsed * 1000.0
+
+    def get_rawtime(self):
+        """Milliseconds the last frame spent working, waiting excluded."""
+        return self._raw_elapsed * 1000.0
 
     def _capped(self, framerate):
         """The rate to actually pace at: the caller's, but never above the

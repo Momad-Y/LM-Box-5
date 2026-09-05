@@ -103,3 +103,54 @@ def test_no_screen_constructs_its_own_pygame_clock():
         assert "pygame.time.Clock()" not in source, (
             f"{path} builds a raw pygame clock, which cannot honour a 60 FPS cap"
         )
+
+
+# ------------------------------------------------- drop-in completeness
+def test_frame_clock_covers_pygames_entire_clock_surface():
+    # FrameClock replaces pygame.time.Clock wholesale, so any public method
+    # of the real Clock that it does not implement is a crash waiting for
+    # whichever screen happens to call it. That is not hypothetical: the
+    # first version implemented only tick() and get_fps(), and the Credits
+    # screen - the one screen that scrolls by elapsed time - called
+    # get_time() and brought the app down with an AttributeError.
+    real = {name for name in dir(pygame.time.Clock()) if not name.startswith("_")}
+    ours = {name for name in dir(FrameClock()) if not name.startswith("_")}
+    missing = real - ours
+    assert not missing, f"FrameClock is missing pygame Clock methods: {sorted(missing)}"
+
+
+def test_get_time_reports_the_last_frames_duration():
+    clock = FrameClock(max_fps=60)
+    clock.tick(60)
+    returned = clock.tick(60)
+    # get_time() must agree with what tick() just returned, in milliseconds
+    assert abs(clock.get_time() - returned) < 1e-6
+    assert 10.0 < clock.get_time() < 40.0
+
+
+def test_get_time_is_nonzero_before_the_second_tick_and_never_none():
+    # The Credits scroll multiplies by this every frame; a None or a
+    # missing attribute is what broke it, so pin the type down.
+    clock = FrameClock(max_fps=60)
+    assert isinstance(clock.get_time(), float)
+    assert isinstance(clock.get_rawtime(), float)
+
+
+def test_get_rawtime_excludes_the_time_spent_waiting():
+    # A near-empty frame spends almost all of its wall time waiting for the
+    # cap, so raw work time must come out far below the full frame time.
+    clock = FrameClock(max_fps=60)
+    clock.tick(60)
+    clock.tick(60)
+    assert clock.get_rawtime() < clock.get_time()
+
+
+def test_the_credits_scroll_advances_with_real_elapsed_time():
+    # Reproduces exactly what gui/screen_credits.py does each frame.
+    clock = FrameClock(max_fps=60)
+    clock.tick(60)
+    offset = 0.0
+    for _ in range(5):
+        clock.tick(60)
+        offset += 30 * clock.get_time() / 1000
+    assert offset > 0, "credits would never scroll"
