@@ -4,6 +4,7 @@ Same mix as test_medium_fixes.py: structural checks for the purely
 mechanical cleanups (dead code removed, files deleted, config trimmed),
 behavioral checks where there's real runtime behavior to lock down.
 """
+
 import ast
 import os
 
@@ -12,12 +13,16 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _game_class(src):
     tree = ast.parse(src)
-    return next(n for n in ast.walk(tree) if isinstance(n, ast.ClassDef) and n.name == "Game")
+    return next(
+        n for n in ast.walk(tree) if isinstance(n, ast.ClassDef) and n.name == "Game"
+    )
 
 
 def _method_source(game_class, src, name):
     node = next(
-        n for n in ast.walk(game_class) if isinstance(n, ast.FunctionDef) and n.name == name
+        n
+        for n in ast.walk(game_class)
+        if isinstance(n, ast.FunctionDef) and n.name == name
     )
     return ast.get_source_segment(src, node)
 
@@ -42,7 +47,7 @@ def test_balloons_are_sorted_once_at_generation_not_every_frame():
     game_class = _game_class(src)
 
     init_src = _method_source(game_class, src, "init_balloons")
-    assert "balloons.sort(key=lambda x: x[\"time\"])" in init_src
+    assert 'balloons.sort(key=lambda x: x["time"])' in init_src
 
     loop_src = _method_source(game_class, src, "start_balloons_game")
     assert "balloons.sort(" not in loop_src
@@ -93,9 +98,7 @@ def test_dim_screen_reuses_a_cached_surface_for_the_same_key():
 
 # --------------------------------------------------------------- fix 36/37
 def test_orphaned_images_were_deleted():
-    assert not os.path.exists(
-        os.path.join(REPO_ROOT, "gui/resources/images/main_menu_bg.png")
-    )
+    assert not os.path.exists(os.path.join(REPO_ROOT, "gui/resources/images/bg.png"))
     assert not os.path.exists(
         os.path.join(REPO_ROOT, "gui/resources/images/hand_landmarks.png")
     )
