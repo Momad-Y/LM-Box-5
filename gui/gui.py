@@ -160,13 +160,13 @@ class Game:
         self.initial_screen_width = 1280  # The default screen width
         self.initial_screen_height = 720  # The default screen height
         self.user_camera_number = 0  # The camera number to use for the game
-        
+
         # Initialize game settings
         self.load_settings()
-        
+
         # Setup database for users
         self.setup_database()
-        
+
         # Get the user's screen resolution
         user_screen = get_monitors()[self.user_screen_number]
         self.user_screen_width = user_screen.width
@@ -269,7 +269,7 @@ class Game:
         settings_path = os.path.join(DATA_DIR, "settings.json")
         if os.path.exists(settings_path):
             try:
-                with open(settings_path, 'r') as f:
+                with open(settings_path, "r") as f:
                     self.settings = json.load(f)
                 # Fill in any missing settings with defaults
                 for key, value in DEFAULT_SETTINGS.items():
@@ -281,10 +281,10 @@ class Game:
         else:
             # If no settings file exists, use defaults
             self.settings = DEFAULT_SETTINGS.copy()
-        
+
         # Apply settings
         self.apply_settings()
-            
+
     def save_settings(self):
         """Save current settings to file"""
         settings_path = os.path.join(DATA_DIR, "settings.json")
@@ -294,7 +294,7 @@ class Game:
         # settings or the new ones, never a half-written file.
         tmp_path = settings_path + ".tmp"
         try:
-            with open(tmp_path, 'w') as f:
+            with open(tmp_path, "w") as f:
                 json.dump(self.settings, f, indent=4)
             os.replace(tmp_path, settings_path)
         except (IOError, TypeError, ValueError):
@@ -303,7 +303,7 @@ class Game:
             # forever - the next successful save will just recreate it.
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-            
+
     def apply_settings(self):
         """Apply the current settings to the game.
 
@@ -437,19 +437,22 @@ class Game:
             self.cursor = self.conn.cursor()
 
             # Create users table if it doesn't exist
-            self.cursor.execute('''
+            self.cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-            ''')
+            """
+            )
             self.conn.commit()
 
             # Add the face picture column to databases created before it
             # existed, so an existing users file keeps working after an update
             columns = [
-                row[1] for row in self.cursor.execute("PRAGMA table_info(users)").fetchall()
+                row[1]
+                for row in self.cursor.execute("PRAGMA table_info(users)").fetchall()
             ]
             if "face_image" not in columns:
                 self.cursor.execute("ALTER TABLE users ADD COLUMN face_image BLOB")
@@ -473,7 +476,9 @@ class Game:
             # Check if there are any users, add a default one if empty
             self.cursor.execute("SELECT COUNT(*) FROM users")
             if self.cursor.fetchone()[0] == 0:
-                self.cursor.execute("INSERT INTO users (name) VALUES (?)", ("Player 1",))
+                self.cursor.execute(
+                    "INSERT INTO users (name) VALUES (?)", ("Player 1",)
+                )
                 self.conn.commit()
         except sqlite3.Error as exc:
             sys.exit(
@@ -537,9 +542,7 @@ class Game:
         ):
             return
         if (
-            self._db_execute(
-                "DELETE FROM users WHERE id = ?", (user_id,), commit=True
-            )
+            self._db_execute("DELETE FROM users WHERE id = ?", (user_id,), commit=True)
             is None
         ):
             return
@@ -689,7 +692,6 @@ class Game:
         """
         self._user_name_cache.pop(user_id, None)
 
-
     def init_users_database(self):
         """Show the users screen: add, rename, photograph or delete players."""
         self.sync_screen_size()
@@ -709,7 +711,7 @@ class Game:
         """Background used by the prompt and picture screens."""
         if not hasattr(self, "prompt_bg_image"):
             self.prompt_bg_image = pygame.image.load(
-                f"{CWD}/resources/images/credits_bg.png"
+                f"{CWD}/resources/images/bg.png"
             ).convert()
         return self.prompt_bg_image
 
@@ -788,7 +790,9 @@ class Game:
         # Fill any empty slot with a user not already picked
         for slot in range(slot_count):
             if chosen[slot] is None:
-                spare = next((uid for uid in user_ids if uid not in chosen), user_ids[0])
+                spare = next(
+                    (uid for uid in user_ids if uid not in chosen), user_ids[0]
+                )
                 chosen[slot] = spare
 
         active_slot = 0
@@ -849,8 +853,16 @@ class Game:
 
         panel_width = int(width * (0.46 if len(entries) == 1 else 0.66))
         panel_height = (
-            pad * 2 + headline_size + gap + face_size + gap + name_size + gap
-            + score_size + gap + note_size
+            pad * 2
+            + headline_size
+            + gap
+            + face_size
+            + gap
+            + name_size
+            + gap
+            + score_size
+            + gap
+            + note_size
         )
         panel = pygame.Rect(0, 0, panel_width, panel_height)
         panel.center = (width // 2, height // 2)
@@ -899,7 +911,10 @@ class Game:
                     self.font_path,
                     note_size,
                     color=ui.SUN,
-                    midtop=(centre_x, face_rect.bottom + gap * 3 + name_size + score_size),
+                    midtop=(
+                        centre_x,
+                        face_rect.bottom + gap * 3 + name_size + score_size,
+                    ),
                     letter_spacing=ui.cqw(0.06, width),
                 )
 
@@ -945,7 +960,9 @@ class Game:
         for slot, label in enumerate(slot_labels):
             selected = slot == active_slot
             color = ui.SUN if selected else ui.INK
-            rect = pygame.Rect(left + slot * (slot_width + gap), top, slot_width, slot_height)
+            rect = pygame.Rect(
+                left + slot * (slot_width + gap), top, slot_width, slot_height
+            )
 
             if selected:
                 ui.draw_glow(surface, rect)
@@ -977,11 +994,19 @@ class Game:
             )
             arrow_color = color if selected else (120, 115, 132)
             ui.draw_text(
-                surface, "<", self.font_path, name_size, color=arrow_color,
+                surface,
+                "<",
+                self.font_path,
+                name_size,
+                color=arrow_color,
                 topleft=(rect.left + pad, name_y),
             )
             ui.draw_text(
-                surface, ">", self.font_path, name_size, color=arrow_color,
+                surface,
+                ">",
+                self.font_path,
+                name_size,
+                color=arrow_color,
                 midright=(rect.right - pad, name_y + name_size // 2),
             )
 
@@ -1173,7 +1198,9 @@ class Game:
                 print("Trying alternate camera index 2")
                 stream = cv2.VideoCapture(2)
             if not stream.isOpened():
-                print("WARNING: Could not open any camera. Some features may not work properly.")
+                print(
+                    "WARNING: Could not open any camera. Some features may not work properly."
+                )
 
         # MJPG lets the camera compress each frame on-device before
         # sending it, instead of streaming raw YUYV - this webcam is
@@ -1192,7 +1219,9 @@ class Game:
         mjpg = cv2.VideoWriter_fourcc(*"MJPG")
         stream.set(cv2.CAP_PROP_FOURCC, mjpg)
         if int(stream.get(cv2.CAP_PROP_FOURCC)) != mjpg:
-            print("NOTE: camera did not accept MJPG capture format, staying on its default")
+            print(
+                "NOTE: camera did not accept MJPG capture format, staying on its default"
+            )
 
         # Set the camera resolution. Requesting the full screen resolution
         # made the webcam negotiate 1280x720, which it can only deliver at
@@ -1278,7 +1307,9 @@ class Game:
             (image_array.shape[1], image_array.shape[0]),
             mode,
         )
-        return pygame.transform.scale(surface, self.screen.get_size()).convert(self.screen)
+        return pygame.transform.scale(surface, self.screen.get_size()).convert(
+            self.screen
+        )
 
     def capture_scaled_frame(self, ratio, flip=True):
         """Grab and process one camera frame, sized to 1/ratio of the canvas.
@@ -1561,7 +1592,7 @@ class Game:
             # is scaled to the canvas and no longer has the original
             # dimensions the camera-box geometry below is computed against.
             balloons_game_bg_image = self.load_rgba_background(
-                f"{CWD}/resources/images/balloons_game_bg.png"
+                f"{CWD}/resources/images/bg.png"
             )
             self.balloons_game_bg_native_size = (
                 balloons_game_bg_image.shape[1],
@@ -1670,7 +1701,9 @@ class Game:
 
         # A personal best can't change mid-round (only recorded at the end
         # of one), so it's fetched once here instead of on every HUD frame.
-        self.balloons_best_score = self.get_best_score(self.current_player_id(0), "balloons")
+        self.balloons_best_score = self.get_best_score(
+            self.current_player_id(0), "balloons"
+        )
 
         # Initialize the wave
         self.balloons_wave = 1
@@ -1807,17 +1840,23 @@ class Game:
                     )
                 )
 
-                speed = max(1, round(self.difficulty_modifiers["balloon_speed"] * (
-                    random.randint(
-                        combo_ballons_speed_per_wave[wave_config][0],
-                        combo_ballons_speed_per_wave[wave_config][1],
-                    )
-                    if is_combo
-                    else random.randint(
-                        normal_ballons_speed_per_wave[wave_config][0],
-                        normal_ballons_speed_per_wave[wave_config][1],
-                    )
-                )))
+                speed = max(
+                    1,
+                    round(
+                        self.difficulty_modifiers["balloon_speed"]
+                        * (
+                            random.randint(
+                                combo_ballons_speed_per_wave[wave_config][0],
+                                combo_ballons_speed_per_wave[wave_config][1],
+                            )
+                            if is_combo
+                            else random.randint(
+                                normal_ballons_speed_per_wave[wave_config][0],
+                                normal_ballons_speed_per_wave[wave_config][1],
+                            )
+                        )
+                    ),
+                )
                 apperance_time = biased_random_int(
                     0,
                     self.max_wave_time,
@@ -1862,7 +1901,9 @@ class Game:
 
         first_wave = self.balloons_wave == 1
         total = (
-            self.balloon_first_wave_wait_time if first_wave else self.balloon_wave_wait_time
+            self.balloon_first_wave_wait_time
+            if first_wave
+            else self.balloon_wave_wait_time
         )
 
         while True:
@@ -1942,7 +1983,11 @@ class Game:
             self,
             (
                 ("WAVE", f"{self.balloons_wave}/{self.max_balloons_waves}", ui.INK),
-                ("LEFT", "--" if time_left is None else f"{max(0, time_left)}s", ui.WIRE),
+                (
+                    "LEFT",
+                    "--" if time_left is None else f"{max(0, time_left)}s",
+                    ui.WIRE,
+                ),
             ),
             x=feed.right + gap,
             align="left",
@@ -2058,7 +2103,10 @@ class Game:
                 # in canvas space (see init_balloons), so the threshold has
                 # to be translation_y_cam - the canvas-space version of
                 # start_y_cam - not the raw bg-space value itself.
-                if balloon["rect"].top <= self.translation_y_cam + balloon["rect"].height:
+                if (
+                    balloon["rect"].top
+                    <= self.translation_y_cam + balloon["rect"].height
+                ):
 
                     # Remove a point if the balloon is not a combo balloon
                     if not balloon["is_combo"]:
@@ -2088,7 +2136,9 @@ class Game:
                         # so the difficulty difference actually accumulates
                         # over a wave instead of rounding itself away.
                         base_points = {1: 2, 2: 3, 3: 5}.get(balloon["type"], 1)
-                        points = base_points * self.difficulty_modifiers["score_multiplier"]
+                        points = (
+                            base_points * self.difficulty_modifiers["score_multiplier"]
+                        )
                         self.balloons_score = max(0, self.balloons_score + points)
 
                         balloon["is_popped"] = True
@@ -2099,7 +2149,10 @@ class Game:
             # Balloons are never removed from the list - popping or
             # escaping only flips is_popped - so this has to check that
             # flag on every entry rather than the list's own length.
-            if all(b["is_popped"] for b in balloons) or elapsed_time > self.max_wave_time:
+            if (
+                all(b["is_popped"] for b in balloons)
+                or elapsed_time > self.max_wave_time
+            ):
                 self.balloons_wave += 1
                 self.start_balloons_game_timer()
                 break
@@ -2200,7 +2253,7 @@ class Game:
             # size is, since array_to_scaled_surface's output is scaled to
             # the canvas.
             pong_game_bg_image = self.load_rgba_background(
-                f"{CWD}/resources/images/pong_game_bg.png"
+                f"{CWD}/resources/images/bg.png"
             )
             self.pong_game_bg_native_size = (
                 pong_game_bg_image.shape[1],
@@ -2214,9 +2267,7 @@ class Game:
         self.ball_raduis = 10
 
         # Initialize the ball speed, scaled by the difficulty setting
-        base_ball_speed = max(
-            1, round(7 * self.difficulty_modifiers["pong_speed"])
-        )
+        base_ball_speed = max(1, round(7 * self.difficulty_modifiers["pong_speed"]))
         self.ball_speed_x = random.choice([-base_ball_speed, base_ball_speed])
         self.ball_speed_y = random.choice([-base_ball_speed, base_ball_speed])
         self.base_ball_speed = base_ball_speed
@@ -2546,10 +2597,12 @@ class Game:
             # paddle, not speed alone.
             dt_scale = self.frame_dt_scale()
             self.ball_x += max(
-                -self.max_ball_speed, min(self.max_ball_speed, self.ball_speed_x * dt_scale)
+                -self.max_ball_speed,
+                min(self.max_ball_speed, self.ball_speed_x * dt_scale),
             )
             self.ball_y += max(
-                -self.max_ball_speed, min(self.max_ball_speed, self.ball_speed_y * dt_scale)
+                -self.max_ball_speed,
+                min(self.max_ball_speed, self.ball_speed_y * dt_scale),
             )
 
             # Check if the ball hits the top or bottom of the screen
@@ -2799,9 +2852,7 @@ class Game:
             # Initialize the background image for the Runner game. The raw
             # decoded array is a local variable, not kept on self - nothing
             # reads it again after this method returns.
-            runner_game_bg_image = cv2.imread(
-                f"{CWD}/resources/images/runner_game_bg.png"
-            )
+            runner_game_bg_image = cv2.imread(f"{CWD}/resources/images/bg.png")
             self.runner_game_bg_image_pygame = pygame.image.frombuffer(
                 cv2.cvtColor(runner_game_bg_image, cv2.COLOR_BGR2RGB).tobytes(),
                 (runner_game_bg_image.shape[1], runner_game_bg_image.shape[0]),
@@ -2881,7 +2932,9 @@ class Game:
         # The Runner sprite bottom-aligns itself to the ground line, so run,
         # jump and duck frames (which all have different heights) stay
         # planted instead of sinking through the ground.
-        runner_x = self.runner_field_rect.left + int(self.runner_field_rect.width * 0.08)
+        runner_x = self.runner_field_rect.left + int(
+            self.runner_field_rect.width * 0.08
+        )
         self.runner_sprite = Runner(runner_x, self.runner_ground_y)
 
         self.runner_group = pygame.sprite.GroupSingle(self.runner_sprite)
@@ -2891,7 +2944,9 @@ class Game:
         self.runner_score = 0
         # A personal best can't change mid-round (only recorded at the end
         # of one), so it's fetched once here instead of on every HUD frame.
-        self.runner_best_score = self.get_best_score(self.current_player_id(0), "runner")
+        self.runner_best_score = self.get_best_score(
+            self.current_player_id(0), "runner"
+        )
         # Pixels per frame at 30 FPS (~480 px/s scroll speed), scaled by the
         # difficulty setting
         self.runner_game_speed = (
@@ -3037,9 +3092,11 @@ class Game:
                 self.runner_guide_ratios = (
                     pose_data["jump_line_y"] / detect_height,
                     pose_data["duck_line_y"] / detect_height,
-                    pose_data["nose_pos"][1] / detect_height
-                    if pose_data["nose_pos"]
-                    else None,
+                    (
+                        pose_data["nose_pos"][1] / detect_height
+                        if pose_data["nose_pos"]
+                        else None
+                    ),
                 )
 
             # Update the runner
@@ -3051,7 +3108,9 @@ class Game:
             )
 
             # Check collision with an obstacle
-            if pygame.sprite.spritecollide(self.runner_sprite, self.runner_obstacle_group, False):
+            if pygame.sprite.spritecollide(
+                self.runner_sprite, self.runner_obstacle_group, False
+            ):
                 return self.end_runner_game()
 
             # Draw the Runner game background image to the center of the screen
@@ -3061,7 +3120,10 @@ class Game:
             # ground and sprites read clearly instead of getting lost in the
             # background art
             pygame.draw.rect(
-                self.screen, RUNNER_FIELD_COLOR, self.runner_field_rect, border_radius=30
+                self.screen,
+                RUNNER_FIELD_COLOR,
+                self.runner_field_rect,
+                border_radius=30,
             )
 
             # Spawn clouds
@@ -3100,7 +3162,10 @@ class Game:
                     self.runner_obstacle_timer = current_time
                     self.runner_obstacle_spawn = False
                     self.runner_obstacle_cooldown = random.randint(1500, 3000)
-            elif current_time - self.runner_obstacle_timer > self.runner_obstacle_cooldown:
+            elif (
+                current_time - self.runner_obstacle_timer
+                > self.runner_obstacle_cooldown
+            ):
                 self.runner_obstacle_spawn = True
 
             # Everything below is confined to the play field, so sprites and
@@ -3140,7 +3205,11 @@ class Game:
 
             # Outline the play field, matching Pong's bordered field
             pygame.draw.rect(
-                self.screen, (255, 255, 255), self.runner_field_rect, 5, border_radius=30
+                self.screen,
+                (255, 255, 255),
+                self.runner_field_rect,
+                5,
+                border_radius=30,
             )
 
             self.draw_runner_camera(frame)
