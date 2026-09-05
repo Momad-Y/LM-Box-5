@@ -1,10 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller build for LM Box 5.
 
-One spec, three platforms - but note that PyInstaller does not
-cross-compile: it bundles the interpreter and native libraries of the
-machine it runs on. The Windows .exe has to be built on Windows and the
-macOS bundle on macOS, which is what .github/workflows/release.yml does.
+One spec, three platforms. PyInstaller itself does not cross-compile -
+it bundles the interpreter and native libraries of the machine it runs on -
+but that only forces a separate *machine* for macOS:
+
+- Windows can be built from Linux after all, by running a real Windows
+  Python under Wine in a container rather than cross-compiling at all.
+  See scripts/build_windows_in_docker.sh.
+- macOS genuinely cannot. PyInstaller's osxcross/darling notes cover
+  building its own C bootloader, not packaging a Python app: that still
+  needs a macOS CPython plus macOS wheels for mediapipe, OpenCV and
+  pygame. Use the hosted runner in .github/workflows/build-executables.yml
+  (renting a Mac, not owning one).
 
 Build with:  pyinstaller LMBox5.spec --noconfirm
 or, preferably, via scripts/build_executable.py, which also names the

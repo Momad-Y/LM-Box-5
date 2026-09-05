@@ -4,9 +4,13 @@
     python scripts/build_executable.py
 
 PyInstaller bundles the interpreter and native libraries of the machine it
-runs on, so this cannot produce all three platforms from one box: run it on
-Linux for the Linux build, on Windows for the .exe, on macOS for the .app.
-.github/workflows/release.yml does exactly that across three runners.
+runs on, so this script only ever builds for the OS it is run on.
+
+That does not mean you need three machines. Windows can be built from Linux
+by running a real Windows Python under Wine in a container - see
+scripts/build_windows_in_docker.sh, which calls back into this script. Only
+macOS truly needs Apple hardware; .github/workflows/build-executables.yml
+uses a hosted macOS runner for it.
 
 The result is copied into bin/ under a name that says what it is, e.g.
 bin/LMBox5-v1.0.0-linux-x86_64.
@@ -92,19 +96,20 @@ def archive_macos_app(app_path, destination):
     return destination
 
 
-def collect_artifact():
+def collect_artifact(dist_dir=None):
     """Move what PyInstaller produced into bin/ under a descriptive name."""
+    dist_dir = dist_dir or DIST_DIR
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     tag = platform_tag()
     stem = f"LMBox5-v{__version__}-{tag}"
 
-    app_bundle = DIST_DIR / "LM Box 5.app"
+    app_bundle = dist_dir / "LM Box 5.app"
     if app_bundle.exists():
         target = BIN_DIR / f"{stem}.app.zip"
         archive_macos_app(app_bundle, target)
         return target
 
-    produced = DIST_DIR / ("LMBox5.exe" if os.name == "nt" else "LMBox5")
+    produced = dist_dir / ("LMBox5.exe" if os.name == "nt" else "LMBox5")
     if not produced.exists():
         raise SystemExit(f"PyInstaller produced nothing at {produced}")
 
@@ -121,13 +126,22 @@ def main():
         action="store_true",
         help="only collect an already-built dist/ artifact into bin/",
     )
+    parser.add_argument(
+        "--dist",
+        default=None,
+        help=(
+            "where PyInstaller put its output (default: dist/). The Windows "
+            "cross-build keeps its own directory so a Linux build and a "
+            "Windows one can coexist without overwriting each other."
+        ),
+    )
     args = parser.parse_args()
 
     if not args.skip_build:
         build_icon()
         run_pyinstaller()
 
-    artifact = collect_artifact()
+    artifact = collect_artifact(Path(args.dist) if args.dist else None)
     size_mb = artifact.stat().st_size / (1024 * 1024)
     print(f"\nBuilt {artifact.relative_to(REPO_ROOT)}  ({size_mb:.0f} MB)")
 

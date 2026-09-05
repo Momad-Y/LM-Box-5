@@ -264,6 +264,10 @@ docs/
 bin/*
 !bin/README.md
 
+# Output of the Windows cross-build (scripts/build_windows_in_docker.sh),
+# kept separate from dist/ so a Linux and a Windows build can coexist.
+dist-windows/
+
 # The build spec is source, not an artifact: the *.spec rule above is meant
 # for the specs PyInstaller generates on the fly, and would otherwise drop
 # the one file that defines how the executables are actually built.
