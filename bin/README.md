@@ -61,14 +61,34 @@ wheels (2.1+ only), and `cvzone==1.6.1` has no 3.13 wheel at all - only
 the interpreter to the pins is what keeps the Windows build the same
 application as the Linux one rather than a lookalike on other libraries.
 
-**macOS from Linux: no.** PyInstaller's docs mention osxcross and darling,
-but only for compiling its own C bootloader - packaging this app still
-needs a macOS CPython and macOS wheels for MediaPipe, OpenCV and pygame,
-none of which exist for or run on Linux, quite apart from Apple's licence
-restricting macOS to Apple hardware. The way to get a macOS build without
-owning a Mac is to rent one: the hosted `macos-14` runner in
-`.github/workflows/build-executables.yml` does it on every `v*` tag, free
-for public repositories.
+**macOS from Linux: no - but you still do not need to own a Mac.** The
+options, in the order worth trying them:
+
+1. **A hosted runner - already set up, and free here.** The `macos-14` job
+   in `.github/workflows/build-executables.yml` builds on real Apple
+   hardware on every `v*` tag. GitHub Actions is free with no minute limit
+   for public repositories, which this one is, so this costs nothing.
+2. **A rented Mac**, if you want an interactive machine to debug on rather
+   than a build pipeline - MacinCloud is around $1/hour or $4/day,
+   MacStadium and AWS EC2 Mac are the heavier options.
+3. **macOS in a VM on Linux** (Docker-OSX / OSX-KVM) technically works and
+   people do use it for builds, but Apple's licence permits macOS only on
+   Apple hardware, so it is a licence violation rather than a grey area of
+   engineering. Not something to build a publicly distributed binary on.
+4. **Darling**, the macOS equivalent of the Wine trick used above, is the
+   one that would be genuinely elegant and is not ready: CLI tooling works,
+   GUI support is early, and it still needs macOS system files that only
+   Apple can license to you.
+
+What is *not* an option is cross-compiling. PyInstaller's osxcross and
+darling references cover building its own C bootloader, not packaging a
+Python app - that still needs a macOS CPython plus macOS wheels for
+MediaPipe, OpenCV and pygame.
+
+Note the macOS build is Apple Silicon only, and not by choice: MediaPipe
+publishes exactly one macOS wheel, `macosx_11_0_arm64`. No Intel macOS
+build of it exists on PyPI, so an Intel Mac job could not install the app's
+core dependency at all. Intel Mac users have to run from source.
 
 The release workflow still builds Windows natively on a Windows runner
 rather than through Wine. Wine is a good proxy - good enough to prove the

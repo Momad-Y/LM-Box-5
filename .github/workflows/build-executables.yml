@@ -30,12 +30,13 @@ jobs:
             label: Linux
           - os: windows-latest
             label: Windows
+          # Apple Silicon only, and not by choice: mediapipe publishes
+          # exactly one macOS wheel, macosx_11_0_arm64. There is no Intel
+          # macOS build of it on PyPI, so a macos-13 job could not install
+          # the app's core dependency and would fail rather than produce an
+          # Intel binary. Intel Mac users have to run from source.
           - os: macos-14
             label: macOS (Apple Silicon)
-          # Intel Macs need their own build - a macos-14 arm64 binary will
-          # not run on them. Uncomment to publish one too.
-          # - os: macos-13
-          #   label: macOS (Intel)
 
     steps:
       - uses: actions/checkout@v4
