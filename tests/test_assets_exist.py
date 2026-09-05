@@ -75,3 +75,19 @@ def test_every_game_has_its_background_music_track():
     sounds = REPO_ROOT / "gui" / "resources" / "sounds"
     for track in ("bg-music.ogg", "balloon-bg-music.ogg", "pong-bg-music.ogg", "runner-bg-music.ogg"):
         assert (sounds / track).is_file(), f"missing background music: {track}"
+
+
+def test_every_image_the_readme_links_to_exists():
+    # Screenshots live outside gui/resources and are referenced only by
+    # README markdown, so nothing else in the suite notices when they are
+    # renamed - which happened, leaving six dead image links and two
+    # failing tests that read a screenshot as a fixture.
+    import re
+
+    readme = (REPO_ROOT / "README.md").read_text()
+    missing = [
+        link
+        for link in re.findall(r"!\[[^\]]*\]\(\./([^)]+)\)", readme)
+        if not (REPO_ROOT / link).is_file()
+    ]
+    assert not missing, "README links to images that do not exist:\n" + "\n".join(missing)

@@ -450,7 +450,12 @@ class Game:
         """
         self.release_resources()
         pygame.quit()
-        exit()
+        # sys.exit, not the bare exit(): that name is not a builtin at all,
+        # it is a convenience the `site` module injects for interactive use.
+        # A PyInstaller build runs without it, so the frozen executable hit
+        # NameError here on every single quit path - the app could not shut
+        # down at all once packaged, while running from source was fine.
+        sys.exit()
 
     def draw_fps(self):
         """Draw the frame rate in the corner when the setting is enabled."""

@@ -142,7 +142,14 @@ def test_the_bgr_round_trip_is_what_actually_makes_real_hand_detection_work():
     # mode (the class's default) coast on a stale lock from a single lucky
     # first detection instead of genuinely re-detecting each time, which
     # would mask this exact bug.
-    img = cv2.imread("images/balloons_game.png")
+    # A fixture of this test's own, not one of the README screenshots. It
+    # used to read images/balloons_game.png, which broke twice over: once
+    # when the screenshots were renamed, and again because the replacement
+    # shot happens to be detectable even through the wrong channel order,
+    # quietly destroying the premise the assertions below rest on. A
+    # behavioural test should not depend on an asset that gets replaced for
+    # cosmetic reasons.
+    img = cv2.imread("tests/fixtures/hand-reference.png")
     assert img is not None, "reference image with a real hand is missing"
     img = cv2.resize(img, (768, 432))
     camera_image_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

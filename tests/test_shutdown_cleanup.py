@@ -9,6 +9,7 @@ requiring a hard reboot - not merely a resource leak. See
 docs/PERFORMANCE_AUDIT.md's note on this incident.
 """
 import ast
+import sys
 from unittest.mock import MagicMock
 
 import pygame
@@ -29,7 +30,7 @@ def _method_source(game_class, src, name):
 def _stub_exit(game, monkeypatch):
     """Prevent quit_app() from actually tearing down pygame or the process."""
     monkeypatch.setattr(pygame, "quit", MagicMock())
-    monkeypatch.setattr("builtins.exit", MagicMock())
+    monkeypatch.setattr(sys, "exit", MagicMock())
 
 
 def test_quit_app_releases_the_camera(game, monkeypatch):
@@ -80,7 +81,7 @@ def test_quit_app_still_calls_pygame_quit_and_exit(game, monkeypatch):
     quit_mock = MagicMock()
     exit_mock = MagicMock()
     monkeypatch.setattr(pygame, "quit", quit_mock)
-    monkeypatch.setattr("builtins.exit", exit_mock)
+    monkeypatch.setattr(sys, "exit", exit_mock)
 
     game.quit_app()
 
@@ -95,7 +96,7 @@ def test_quit_app_works_end_to_end_against_the_real_objects(game, monkeypatch):
     # .finger_detector directly) that the mocked tests above can't, since
     # a mock happily accepts a call to a misspelled method.
     monkeypatch.setattr(pygame, "quit", MagicMock())
-    monkeypatch.setattr("builtins.exit", MagicMock())
+    monkeypatch.setattr(sys, "exit", MagicMock())
 
     game.quit_app()  # must not raise against the real cap/hands/pose objects
 
@@ -108,7 +109,7 @@ def test_quit_app_tolerates_a_partially_constructed_game(monkeypatch):
 
     bare = Game.__new__(Game)  # skips __init__ entirely - no attributes set
     monkeypatch.setattr(pygame, "quit", MagicMock())
-    monkeypatch.setattr("builtins.exit", MagicMock())
+    monkeypatch.setattr(sys, "exit", MagicMock())
 
     bare.quit_app()  # must not raise
 

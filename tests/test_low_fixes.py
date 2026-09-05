@@ -105,7 +105,7 @@ def test_orphaned_images_were_deleted():
         os.path.join(REPO_ROOT, "gui/resources/images/hand_landmarks.png")
     )
     # The top-level copy the README actually links to must still be there
-    assert os.path.exists(os.path.join(REPO_ROOT, "images/hand_landmarks.png"))
+    assert os.path.exists(os.path.join(REPO_ROOT, "images/hand-landmarks.png"))
 
 
 def test_the_shared_background_art_is_present():

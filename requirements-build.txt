@@ -1,0 +1,6 @@
+# Build-only dependencies - needed to package the app into a standalone
+# executable, never imported by the game itself. Kept separate from
+# requirements.txt so a player installing from source does not pull a
+# packaging toolchain, and so PyInstaller does not end up analysing itself.
+pyinstaller==6.22.2
+pillow==11.0.0

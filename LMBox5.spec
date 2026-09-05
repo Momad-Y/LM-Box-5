@@ -1,0 +1,104 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller build for LM Box 5.
+
+One spec, three platforms - but note that PyInstaller does not
+cross-compile: it bundles the interpreter and native libraries of the
+machine it runs on. The Windows .exe has to be built on Windows and the
+macOS bundle on macOS, which is what .github/workflows/release.yml does.
+
+Build with:  pyinstaller LMBox5.spec --noconfirm
+or, preferably, via scripts/build_executable.py, which also names the
+output per platform and drops it in bin/.
+"""
+import sys
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_all
+
+SPEC_DIR = Path(SPECPATH)
+
+sys.path.insert(0, str(SPEC_DIR))
+from gui.version import __version__  # noqa: E402
+
+# Everything the game loads at runtime by path. gui/gui.py builds these
+# paths from its own __file__, which PyInstaller resolves inside the
+# extraction directory, so the tree has to keep its "gui/resources/..."
+# shape rather than being flattened.
+datas = [("gui/resources", "gui/resources")]
+binaries = []
+hiddenimports = []
+
+# mediapipe ships .tflite/.binarypb model graphs and a native extension
+# alongside its Python code; without collecting the package wholesale the
+# executable builds fine and then dies at the first hand/pose detection,
+# because the models simply are not there. cvzone is collected for the
+# same reason (it loads mediapipe's solutions through its own package
+# data).
+for package in ("mediapipe", "cvzone"):
+    package_datas, package_binaries, package_hidden = collect_all(package)
+    datas += package_datas
+    binaries += package_binaries
+    hiddenimports += package_hidden
+
+a = Analysis(
+    ["main.py"],
+    pathex=[str(SPEC_DIR)],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    runtime_hooks=[],
+    # Test-only and dev-only packages. pytest in particular drags in a
+    # large dependency tree that no player will ever execute.
+    excludes=["pytest", "_pytest", "tkinter", "IPython", "jupyter", "notebook"],
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name="LMBox5",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    runtime_tmpdir=None,
+    # A game, not a command-line tool: no console window should appear
+    # behind it. Flip to True when chasing a crash that leaves no trace.
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=str(SPEC_DIR / "build" / "icon.ico")
+    if (SPEC_DIR / "build" / "icon.ico").exists()
+    else None,
+)
+
+# macOS gates the camera behind TCC, and TCC only prompts for an .app
+# bundle carrying an NSCameraUsageDescription. A bare Unix executable gets
+# refused the camera with no prompt and no error the player can act on -
+# which for this app means all three games silently fail to start.
+if sys.platform == "darwin":
+    app = BUNDLE(
+        exe,
+        name="LM Box 5.app",
+        icon=None,
+        bundle_identifier="com.lmbox5.game",
+        version=__version__,
+        info_plist={
+            "NSCameraUsageDescription": (
+                "LM Box 5 uses the camera to track your hands and body - "
+                "that is how the games are played. Video never leaves your "
+                "device."
+            ),
+            "NSHighResolutionCapable": True,
+            "CFBundleShortVersionString": __version__,
+        },
+    )

@@ -1,0 +1,99 @@
+name: Build executables
+
+# PyInstaller embeds the interpreter and native libraries (opencv,
+# mediapipe) of the machine it runs on, so there is no cross-compiling:
+# each executable has to be built on its own OS. That is the entire reason
+# this workflow exists - one runner per platform, all three released
+# together.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built on the oldest supported Ubuntu on purpose: a Linux binary
+          # links against the glibc of the machine that built it and will
+          # not start on anything older, so building on -latest would
+          # silently drop every user on a stable distro.
+          - os: ubuntu-22.04
+            label: Linux
+          - os: windows-latest
+            label: Windows
+          - os: macos-14
+            label: macOS (Apple Silicon)
+          # Intel Macs need their own build - a macos-14 arm64 binary will
+          # not run on them. Uncomment to publish one too.
+          # - os: macos-13
+          #   label: macOS (Intel)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Build
+        run: python scripts/build_executable.py
+
+      - name: Check the executable is not obviously broken
+        # Not a substitute for launching it - a windowed game cannot be
+        # launched on a headless runner - but it does catch a bundle that
+        # is missing files outright.
+        shell: bash
+        run: ls -la bin/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LMBox5-${{ matrix.label }}
+          path: bin/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Attach every platform's build to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          body: |
+            Standalone builds - no Python install required.
+
+            | Platform | File |
+            |---|---|
+            | Linux | `LMBox5-*-linux-x86_64` |
+            | Windows | `LMBox5-*-windows-x86_64.exe` |
+            | macOS | `LMBox5-*-macos-arm64.app.zip` |
+
+            A webcam is required: all three games are played with hand or
+            body tracking and none has a keyboard fallback. Camera video is
+            processed on-device and never leaves it.
+
+            On macOS the app is unsigned, so the first launch needs
+            right-click -> Open. On Linux, `chmod +x` the download first.

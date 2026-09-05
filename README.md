@@ -111,7 +111,7 @@ LM Box 5 uses the following computer vision technologies:
     - **Landmark Inference**: Infers 21 3D landmarks per hand, including finger tips, joints, and palm points.
     - **Gesture Mapping**: Translates finger positions and gestures into game controls.
 
-![labeled hand landmarks image](./images/hand_landmarks.png)
+![labeled hand landmarks image](./images/hand-landmarks.png)
 
 2. **Mediapipe Pose**:
     - **Pose Estimation**: Tracks full-body movements from RGB video in real time.
@@ -120,7 +120,7 @@ LM Box 5 uses the following computer vision technologies:
         - **Detector** finds the person/pose ROI.
         - **Tracker** predicts landmarks and segmentation from cropped frames. Detection re-runs only if tracking fails.
 
-![labeled pose landmarks image](./images/pose_landmarks.png)
+![labeled pose landmarks image](./images/pose-landmarks.png)
 
 ### Application in LM Box 5:
 
@@ -133,16 +133,16 @@ LM Box 5 uses the following computer vision technologies:
 Here are some screenshots showcasing the different games and features of LM Box 5:
 
 - _Main menu interface with game selection options_
-  ![Main Menu](./images/main_menu.png)
+  ![Main Menu](./images/ss-main-menu.png)
 
 - _Balloons game with colorful balloons to pop using hand gestures_
-  ![Balloons Game](./images/balloons_game.png)
+  ![Balloons Game](./images/ss-balloons.png)
 
 - _Classic Pong game controlled via hand tracking_
-  ![Pong Game](./images/pong_game.png)
+  ![Pong Game](./images/ss-pong.png)
 
 - _Runner game with pose detection controls_
-  ![Runner Game](./images/runner_game.png)
+  ![Runner Game](./images/ss-runner.png)
 
 ## References
 

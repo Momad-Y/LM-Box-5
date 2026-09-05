@@ -256,3 +256,18 @@ data/
 
 # Local working notes, not shipped/reviewed content
 docs/
+
+# Built executables. GitHub hard-rejects files over 100MB and these are
+# ~295MB each, so they ship as Release assets instead - see bin/README.md.
+bin/*
+!bin/README.md
+
+# PyInstaller working directories
+build/
+dist/
+*.manifest
+
+# ...but the build spec is source, not an artifact. The stock Python
+# .gitignore's *.spec rule (meant for auto-generated specs) would drop
+# the one file that defines how the executables are actually built.
+!LMBox5.spec

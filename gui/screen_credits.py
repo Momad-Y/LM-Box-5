@@ -9,8 +9,10 @@ than the space it has.
 import pygame
 
 from . import ui_kit as ui
+from .version import VERSION_LABEL
 
 CREDITS = (
+    ("VERSION", VERSION_LABEL),
     ("GAME DEVELOPMENT", "Mohamed Abdelnasser, Abdelrahman Saeed"),
     ("GRAPHICS", "Mohamed Abdelnasser, Abdelrahman Saeed"),
     ("ART STYLE", "Mostly rectangles"),
