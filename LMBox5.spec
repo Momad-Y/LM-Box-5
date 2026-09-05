@@ -64,30 +64,54 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.datas,
-    [],
+ICON = (
+    str(SPEC_DIR / "build" / "icon.ico")
+    if (SPEC_DIR / "build" / "icon.ico").exists()
+    else None
+)
+
+# Shared EXE settings. A game, not a command-line tool, so no console window
+# should appear behind it - flip `console` to True when chasing a crash that
+# leaves no trace.
+EXE_OPTIONS = dict(
     name="LMBox5",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    runtime_tmpdir=None,
-    # A game, not a command-line tool: no console window should appear
-    # behind it. Flip to True when chasing a crash that leaves no trace.
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(SPEC_DIR / "build" / "icon.ico")
-    if (SPEC_DIR / "build" / "icon.ico").exists()
-    else None,
+    icon=ICON,
 )
+
+if sys.platform == "darwin":
+    # onedir on macOS, unlike the single-file builds below, and not a
+    # stylistic choice: PyInstaller warns that onefile "clashes with macOS's
+    # security" inside a .app and will make it an outright error in v7. The
+    # clash bites this app specifically. macOS grants camera access through
+    # TCC, which identifies an app by its bundle - and a onefile bundle
+    # unpacks itself to a fresh temporary directory and re-execs from there
+    # on every launch, so the thing asking for the camera is not stably the
+    # thing the user granted it to. A .app is a directory by nature; letting
+    # it be one is what keeps the NSCameraUsageDescription prompt below
+    # meaningful.
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, **EXE_OPTIONS)
+    collected = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=False,
+        name="LMBox5",
+    )
+else:
+    # Linux and Windows: one self-contained file, which is what "download
+    # and run it" should mean on those platforms.
+    exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], runtime_tmpdir=None, **EXE_OPTIONS)
 
 # macOS gates the camera behind TCC, and TCC only prompts for an .app
 # bundle carrying an NSCameraUsageDescription. A bare Unix executable gets
@@ -95,7 +119,7 @@ exe = EXE(
 # which for this app means all three games silently fail to start.
 if sys.platform == "darwin":
     app = BUNDLE(
-        exe,
+        collected,
         name="LM Box 5.app",
         icon=None,
         bundle_identifier="com.lmbox5.game",
