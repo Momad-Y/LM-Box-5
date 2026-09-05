@@ -50,25 +50,56 @@ def platform_tag():
     return f"{system}-{machine}"
 
 
-def build_icon():
-    """Convert the app icon to .ico, which is what Windows builds embed.
+def _squared(image):
+    """Pad to a square canvas instead of stretching to one.
 
-    Skipped silently if Pillow or the source icon is unavailable - an
+    The source art is 2000x1671. Both .ico and .icns are square formats, so
+    handing them a 6:5 image means either distortion or a cropped-off edge -
+    the first build embedded a 256x214 frame, which Windows renders wrong
+    because it expects square entries. Padding onto transparency keeps the
+    artwork's proportions and its whole area.
+    """
+    side = max(image.size)
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    canvas.paste(image, ((side - image.width) // 2, (side - image.height) // 2))
+    return canvas
+
+
+def build_icon():
+    """Produce the icon formats each platform's packager needs.
+
+    Windows embeds .ico into the .exe, macOS wants .icns inside the .app,
+    and Linux executables cannot carry an icon at all (PyInstaller says so
+    outright: "Ignoring icon; supported only on Windows and macOS") - a
+    Linux desktop entry supplies it instead, see packaging/.
+
+    Skipped silently if Pillow or the source icon is unavailable: an
     executable without an icon is a cosmetic loss, not a failed build.
     """
     if not ICON_SOURCE.exists():
         return None
     try:
+        global Image
         from PIL import Image
     except ImportError:
         print("note: Pillow unavailable, building without an icon")
         return None
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    target = BUILD_DIR / "icon.ico"
-    image = Image.open(ICON_SOURCE).convert("RGBA")
-    image.save(target, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (256, 256)])
-    return target
+    square = _squared(Image.open(ICON_SOURCE).convert("RGBA"))
+
+    ico = BUILD_DIR / "icon.ico"
+    square.save(ico, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
+    # ICNS wants a 1024x1024 master; Pillow derives the smaller variants.
+    icns = BUILD_DIR / "icon.icns"
+    try:
+        square.resize((1024, 1024), Image.LANCZOS).save(icns)
+    except Exception as exc:  # pragma: no cover - platform/Pillow dependent
+        print(f"note: could not write {icns.name} ({exc}); .app will use the default icon")
+        icns = None
+
+    return {"ico": ico, "icns": icns}
 
 
 def run_pyinstaller():

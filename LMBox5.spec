@@ -64,11 +64,15 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-ICON = (
-    str(SPEC_DIR / "build" / "icon.ico")
-    if (SPEC_DIR / "build" / "icon.ico").exists()
-    else None
-)
+# Each packager wants its own format: Windows embeds .ico into the .exe,
+# macOS wants .icns inside the .app. A Linux executable cannot carry an icon
+# at all - PyInstaller says so outright ("Ignoring icon; supported only on
+# Windows and macOS") - so the Linux desktop entry in packaging/ supplies
+# one instead. scripts/build_executable.py generates both files.
+_icon_file = {"darwin": "icon.icns", "win32": "icon.ico"}.get(sys.platform)
+ICON = None
+if _icon_file and (SPEC_DIR / "build" / _icon_file).exists():
+    ICON = str(SPEC_DIR / "build" / _icon_file)
 
 # Shared EXE settings. A game, not a command-line tool, so no console window
 # should appear behind it - flip `console` to True when chasing a crash that
@@ -121,7 +125,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         collected,
         name="LM Box 5.app",
-        icon=None,
+        icon=ICON,
         bundle_identifier="com.lmbox5.game",
         version=__version__,
         info_plist={

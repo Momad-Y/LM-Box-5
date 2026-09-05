@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=LM Box 5
+GenericName=Computer Vision Games
+Comment=Play Balloons, Pong and Runner with hand and body tracking
+# Both rewritten by scripts/install_linux_desktop.sh to absolute paths -
+# a desktop entry is not resolved relative to anything, and a bare command
+# only works if the binary happens to be on PATH.
+Exec=LMBox5
+Icon=lmbox5
+Terminal=false
+Categories=Game;ActionGame;
+Keywords=game;webcam;camera;hand tracking;pose;computer vision;
+StartupWMClass=LM Box 5
