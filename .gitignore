@@ -259,15 +259,12 @@ docs/
 
 # Built executables. GitHub hard-rejects files over 100MB and these are
 # ~295MB each, so they ship as Release assets instead - see bin/README.md.
+# (PyInstaller's own build/ and dist/ working directories are already
+# covered by the Distribution/packaging section near the top.)
 bin/*
 !bin/README.md
 
-# PyInstaller working directories
-build/
-dist/
-*.manifest
-
-# ...but the build spec is source, not an artifact. The stock Python
-# .gitignore's *.spec rule (meant for auto-generated specs) would drop
+# The build spec is source, not an artifact: the *.spec rule above is meant
+# for the specs PyInstaller generates on the fly, and would otherwise drop
 # the one file that defines how the executables are actually built.
 !LMBox5.spec
