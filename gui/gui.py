@@ -255,6 +255,11 @@ class Game:
         self.clock = FrameClock(max_fps=TARGET_FPS)
         self.dt = 0
 
+        # Which background track is currently loaded, so returning to the
+        # menu can tell "my theme is still playing" from "a game took the
+        # music over" - see play_music.
+        self._current_music = None
+
         # Initialize the font for the game
         self.font_path = f"{CWD}/resources/fonts/joystix monospace.otf"
 
@@ -332,6 +337,36 @@ class Game:
     def sfx_volume(self, base_volume):
         """Scale a sound effect's designed level by the sound volume setting."""
         return max(0.0, min(1.0, base_volume * self.sound_volume))
+
+    def play_music(self, filename, restart=False):
+        """Start a looping background track, skipping it if already playing.
+
+        The menu is re-entered constantly - every trip into Users,
+        Leaderboards, Settings or Credits returns straight back to it, and
+        each return used to reload the same file and play it from the top,
+        so the menu theme restarted from the first bar every few seconds.
+        Asking for a track that is already the one playing now leaves it
+        alone and lets it carry on.
+
+        Knowing *which* file is playing is what makes that safe: pygame can
+        only report that some music is busy, which is equally true while a
+        game's own theme plays. Skipping on "busy" alone would leave the
+        Runner theme playing over the main menu after a round; matching the
+        filename means the menu restarts the music when - and only when -
+        something else took it over.
+
+        Games pass restart=True: starting a round is a fresh start and
+        should sound like one, including replaying the same game twice.
+        """
+        if self._current_music == filename and mixer.music.get_busy() and not restart:
+            # Left playing, but the volume setting may have changed while it was
+            mixer.music.set_volume(self.music_volume)
+            return
+
+        mixer.music.load(f"{CWD}/resources/sounds/{filename}")
+        mixer.music.set_volume(self.music_volume)
+        mixer.music.play(-1)
+        self._current_music = filename
 
     def frame_dt_scale(self):
         """How many nominal (1/MOVEMENT_REFERENCE_FPS) frames the last real
@@ -1521,9 +1556,10 @@ class Game:
         """Show the main menu and return the action the player chose."""
         self.sync_screen_size()
 
-        mixer.music.load(f"{CWD}/resources/sounds/bg-music.ogg")
-        mixer.music.set_volume(self.music_volume)
-        mixer.music.play(-1)
+        # Deliberately not restarted: the menu is returned to constantly, and
+        # its theme should carry on rather than snap back to the first bar
+        # every time the player backs out of another screen.
+        self.play_music("bg-music.ogg")
 
         return screen_menu.run(self)
 
@@ -1549,12 +1585,9 @@ class Game:
         ):
             return
 
-        # Set the background music for the main menu
-        mixer.music.load(f"{CWD}/resources/sounds/balloon-bg-music.ogg")
-        mixer.music.set_volume(self.music_volume)
-
-        # Play the background music
-        mixer.music.play(-1)
+        # Set the background music for the Balloons game. Restarted every
+        # round, unlike the menu theme - a new round should sound like one.
+        self.play_music("balloon-bg-music.ogg", restart=True)
 
         # Sounds, background and pin image are fixed for the whole process -
         # loaded from disk once, ever, rather than on every trip back to the
@@ -2230,12 +2263,9 @@ class Game:
         ):
             return
 
-        # Set the background music for the main menu
-        mixer.music.load(f"{CWD}/resources/sounds/pong-bg-music.ogg")
-        mixer.music.set_volume(self.music_volume)
-
-        # Play the background music
-        mixer.music.play(-1)
+        # Set the background music for the Pong game. Restarted every
+        # round, unlike the menu theme - a new round should sound like one.
+        self.play_music("pong-bg-music.ogg", restart=True)
 
         # Sounds and background are fixed for the whole process - loaded
         # from disk once, ever, rather than on every trip back to the main
@@ -2822,12 +2852,9 @@ class Game:
         if not screen_ingame.show_instructions(self, "runner"):
             return
 
-        # Set the background music for the Runner game
-        mixer.music.load(f"{CWD}/resources/sounds/runner-bg-music.ogg")
-        mixer.music.set_volume(self.music_volume)
-
-        # Play the background music
-        mixer.music.play(-1)
+        # Set the background music for the Runner game. Restarted every
+        # round, unlike the menu theme - a new round should sound like one.
+        self.play_music("runner-bg-music.ogg", restart=True)
 
         # Sounds, background and ground tile are fixed for the whole
         # process - loaded from disk once, ever, rather than on every trip
