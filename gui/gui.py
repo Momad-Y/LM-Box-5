@@ -1521,7 +1521,7 @@ class Game:
         """Show the main menu and return the action the player chose."""
         self.sync_screen_size()
 
-        mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")
+        mixer.music.load(f"{CWD}/resources/sounds/bg-music.ogg")
         mixer.music.set_volume(self.music_volume)
         mixer.music.play(-1)
 
@@ -1550,7 +1550,7 @@ class Game:
             return
 
         # Set the background music for the main menu
-        mixer.music.load(f"{CWD}/resources/sounds/balloon_game_bg_music.ogg")
+        mixer.music.load(f"{CWD}/resources/sounds/balloon-bg-music.ogg")
         mixer.music.set_volume(self.music_volume)
 
         # Play the background music
@@ -1576,7 +1576,7 @@ class Game:
                 mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-10.ogg"),
             ]
             self.balloon_game_over_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/game-over.ogg"
+                f"{CWD}/resources/sounds/balloon-game-over.ogg"
             )
             self.balloon_popping_fill_sounds = mixer.Sound(
                 f"{CWD}/resources/sounds/balloon-inflation.ogg"
@@ -2231,7 +2231,7 @@ class Game:
             return
 
         # Set the background music for the main menu
-        mixer.music.load(f"{CWD}/resources/sounds/pong_game_bg_music.ogg")
+        mixer.music.load(f"{CWD}/resources/sounds/pong-bg-music.ogg")
         mixer.music.set_volume(self.music_volume)
 
         # Play the background music
@@ -2423,25 +2423,25 @@ class Game:
         if first_pong_entry:
             # Load hit sounds
             self.hit_sounds = [
-                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-1.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-2.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-3.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-4.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-5.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/ball-hit-6.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-1.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-2.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-3.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-4.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-5.ogg"),
+                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-6.ogg"),
             ]
 
             # Load whistle sound
             self.point_whistle_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/referee-whistle-1.ogg"
+                f"{CWD}/resources/sounds/pong-point-whistle.ogg"
             )
             self.pong_game_over_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/referee-whistle-2.ogg"
+                f"{CWD}/resources/sounds/pong-game-over.ogg"
             )
 
             # Load game over sound
             self.ball_drop_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/ball-dropping.ogg"
+                f"{CWD}/resources/sounds/pong-ball-dropping.ogg"
             )
 
         # Volume always reflects the current setting, even though the Sound
@@ -2823,7 +2823,7 @@ class Game:
             return
 
         # Set the background music for the Runner game
-        mixer.music.load(f"{CWD}/resources/sounds/main_menu_bg_music.ogg")
+        mixer.music.load(f"{CWD}/resources/sounds/runner-bg-music.ogg")
         mixer.music.set_volume(self.music_volume)
 
         # Play the background music
@@ -2837,13 +2837,13 @@ class Game:
         # countdown.
         if not hasattr(self, "runner_start_sound"):
             self.runner_start_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/runner-point.ogg"
+                f"{CWD}/resources/sounds/runner-start.ogg"
             )
             self.runner_jump_sound = mixer.Sound(
                 f"{CWD}/resources/sounds/runner-jump.ogg"
             )
             self.runner_lose_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/runner-lose.ogg"
+                f"{CWD}/resources/sounds/runner-game-over.ogg"
             )
             self.runner_point_sound = mixer.Sound(
                 f"{CWD}/resources/sounds/runner-point.ogg"
