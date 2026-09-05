@@ -98,12 +98,23 @@ def test_dim_screen_reuses_a_cached_surface_for_the_same_key():
 
 # --------------------------------------------------------------- fix 36/37
 def test_orphaned_images_were_deleted():
-    assert not os.path.exists(os.path.join(REPO_ROOT, "gui/resources/images/bg.png"))
+    assert not os.path.exists(
+        os.path.join(REPO_ROOT, "gui/resources/images/main_menu_bg.png")
+    )
     assert not os.path.exists(
         os.path.join(REPO_ROOT, "gui/resources/images/hand_landmarks.png")
     )
     # The top-level copy the README actually links to must still be there
     assert os.path.exists(os.path.join(REPO_ROOT, "images/hand_landmarks.png"))
+
+
+def test_the_shared_background_art_is_present():
+    # bg.png is the one background every screen draws (menu, Balloons, Pong,
+    # Runner and Credits all load it), so its absence breaks the whole app.
+    # Guarded explicitly because a rename sweep once pointed the orphan
+    # check above at this very file, asserting the live artwork must NOT
+    # exist - which passed only while the art was genuinely missing.
+    assert os.path.exists(os.path.join(REPO_ROOT, "gui/resources/images/bg.png"))
 
 
 # --------------------------------------------------------------- fix 38

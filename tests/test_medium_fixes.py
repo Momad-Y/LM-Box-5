@@ -239,7 +239,20 @@ def test_balloon_scoring_does_not_round_per_pop():
     src = open("gui/gui.py").read()
     game_class = _game_class(src)
     body_src = _method_source(game_class, src, "start_balloons_game")
-    assert 'points = base_points * self.difficulty_modifiers["score_multiplier"]' in body_src
+    # Matched with whitespace collapsed: this is a structural check about
+    # what the code computes, and it should not fail merely because a
+    # formatter wrapped the expression across lines (which is exactly what
+    # happened once, reporting a scoring regression that had not occurred).
+    normalized = " ".join(body_src.split())
+    assert (
+        'points = ( base_points * self.difficulty_modifiers["score_multiplier"] )'
+        in normalized
+        or 'points = base_points * self.difficulty_modifiers["score_multiplier"]'
+        in normalized
+    )
+    # The actual regression being guarded: no rounding at the point of a pop
+    assert "round(base_points" not in normalized
+    assert "points = round(" not in normalized
 
     hud_src = _method_source(game_class, src, "draw_balloons_hud")
     assert "int(self.balloons_score)" in hud_src
