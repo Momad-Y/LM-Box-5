@@ -93,17 +93,33 @@ def test_every_game_has_its_background_music_track():
         assert (sounds / track).is_file(), f"missing background music: {track}"
 
 
-def test_every_image_the_readme_links_to_exists():
-    # Screenshots live outside gui/resources and are referenced only by
-    # README markdown, so nothing else in the suite notices when they are
-    # renamed - which happened, leaving six dead image links and two
-    # failing tests that read a screenshot as a fixture.
+def _readme_images():
+    """Every local image the README shows, in either syntax it uses.
+
+    Markdown ![](./x.png) *and* HTML <img src="./x.png">, because the README
+    uses both - the side-by-side screenshot tables need real HTML. Matching
+    only the markdown form would have made the check below pass while
+    verifying nothing at all, which is the same trap the sound files fell
+    into when they stopped being written as literal paths.
+    """
     import re
 
     readme = (REPO_ROOT / "README.md").read_text()
-    missing = [
-        link
-        for link in re.findall(r"!\[[^\]]*\]\(\./([^)]+)\)", readme)
-        if not (REPO_ROOT / link).is_file()
-    ]
-    assert not missing, "README links to images that do not exist:\n" + "\n".join(missing)
+    markdown = re.findall(r"!\[[^\]]*\]\((\./[^)\s]+)\)", readme)
+    html = re.findall(r"""<img[^>]+src=["'](\./[^"']+)["']""", readme)
+    return [link.lstrip("./") for link in markdown + html]
+
+
+def test_the_readme_actually_shows_some_images():
+    # Guards the guard: if the README's markup changes shape again, this
+    # fails loudly instead of the check below passing on an empty list.
+    assert len(_readme_images()) >= 8
+
+
+def test_every_image_the_readme_links_to_exists():
+    # Screenshots live outside gui/resources and are referenced only by the
+    # README, so nothing else in the suite notices when they are renamed -
+    # which happened, leaving six dead image links and two failing tests
+    # that had been reading a screenshot as a fixture.
+    missing = [link for link in _readme_images() if not (REPO_ROOT / link).is_file()]
+    assert not missing, "README shows images that do not exist:\n" + "\n".join(missing)

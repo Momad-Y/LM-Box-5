@@ -12,23 +12,30 @@ def _readme():
     return open(os.path.join(REPO_ROOT, "README.md")).read()
 
 
-def test_readme_has_minimum_and_recommended_sections():
-    readme = _readme()
-    assert "### Minimum" in readme
-    assert "### Recommended" in readme
-    # Minimum comes before Recommended, not the other way round
-    assert readme.index("### Minimum") < readme.index("### Recommended")
+def _requirements_block(readme):
+    """The Requirements section, however it happens to be laid out.
+
+    It used to be two "### Minimum"/"### Recommended" subsections and is now
+    a two-column table. These tests are about whether the specs are
+    documented, not about which of those shapes is used, so they slice the
+    section by its heading rather than by the old subheadings.
+    """
+    start = readme.index("## Requirements")
+    end = readme.index("\n## ", start + 1)
+    return readme[start:end]
 
 
-def test_readme_specs_cover_cpu_ram_and_webcam_for_both_tiers():
-    readme = _readme()
-    minimum = readme[readme.index("### Minimum") : readme.index("### Recommended")]
-    recommended = readme[readme.index("### Recommended") :]
+def test_readme_documents_both_a_minimum_and_a_recommended_tier():
+    block = _requirements_block(_readme())
+    assert "Minimum" in block
+    assert "Recommended" in block
+    assert block.index("Minimum") < block.index("Recommended")
 
-    for section in (minimum, recommended):
-        assert "CPU" in section
-        assert "RAM" in section
-    assert "Webcam" in minimum
+
+def test_readme_specs_cover_cpu_ram_and_webcam():
+    block = _requirements_block(_readme())
+    for spec in ("CPU", "RAM", "Webcam"):
+        assert spec in block, f"the requirements section never mentions {spec}"
 
 
 def test_credits_lists_minimum_and_recommended_spec():

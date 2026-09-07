@@ -138,5 +138,5 @@ def test_pywin32_removed_from_requirements():
 # --------------------------------------------------------------- fix 40
 def test_readme_documents_system_requirements():
     readme = open(os.path.join(REPO_ROOT, "README.md")).read()
-    assert "System Requirements" in readme
+    assert "## Requirements" in readme
     assert "webcam" in readme.lower()
