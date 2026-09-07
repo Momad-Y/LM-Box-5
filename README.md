@@ -69,11 +69,11 @@ Grab a build from **[itch.io](https://momad-y.itch.io/lm-box-5)** or the
 **[releases page](https://github.com/Momad-Y/LM-Box-5/releases/latest)**. No Python, no
 installer, no account. Download, run, wave at your monitor.
 
-| Platform | Notes |
-| --- | --- |
-| **Windows** | Run the `.exe`. SmartScreen may object — *More info* → *Run anyway*. It is unsigned, not malicious. |
-| **macOS** | Unzip, then **right-click → Open** the first time. Apple Silicon only. |
-| **Linux** | `chmod +x` it and go. `./scripts/install_linux_desktop.sh` adds an icon and a launcher entry. |
+| Platform    | Notes                                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| **Windows** | Run the `.exe`. SmartScreen may object — _More info_ → _Run anyway_. It is unsigned, not malicious. |
+| **macOS**   | Unzip, then **right-click → Open** the first time. Apple Silicon only.                              |
+| **Linux**   | `chmod +x` it and go. `./scripts/install_linux_desktop.sh` adds an icon and a launcher entry.       |
 
 ## Requirements
 
@@ -84,12 +84,12 @@ politely tell you so and then decline to do anything interesting.
 Hand and pose tracking (MediaPipe) runs on the CPU every frame, so the CPU is what decides
 how smooth this feels. No GPU is required or used. We checked. Twice.
 
-|  | Minimum | Recommended |
-| --- | --- | --- |
-| **CPU** | Dual-core 2.0 GHz (~2015) | Quad-core 3.0 GHz (~2019) |
-| **RAM** | 4 GB | 8 GB |
-| **Webcam** | Any UVC webcam, 480p | 720p with decent low-light behaviour |
-| **Display** | Anything | 1920×1080 |
+|             | Minimum                   | Recommended                          |
+| ----------- | ------------------------- | ------------------------------------ |
+| **CPU**     | Dual-core 2.0 GHz (~2015) | Quad-core 3.0 GHz (~2019)            |
+| **RAM**     | 4 GB                      | 8 GB                                 |
+| **Webcam**  | Any UVC webcam, 480p      | 720p with decent low-light behaviour |
+| **Display** | Anything                  | 1920×1080                            |
 
 The games render at up to 60 FPS. How close you get depends almost entirely on MediaPipe
 inference speed, which is the single largest cost in every frame — a 2021 mobile i7
@@ -101,11 +101,11 @@ Every frame is processed on your machine. Nothing is uploaded, nothing is record
 the game never asks for an internet connection because it has no use for one. Profiles,
 photos and high scores live in a local folder:
 
-| OS | Location |
-| --- | --- |
-| Linux | `~/.local/share/LMBox5` |
-| macOS | `~/Library/Application Support/LMBox5` |
-| Windows | `%LOCALAPPDATA%\LMBox5` |
+| OS      | Location                               |
+| ------- | -------------------------------------- |
+| Linux   | `~/.local/share/LMBox5`                |
+| macOS   | `~/Library/Application Support/LMBox5` |
+| Windows | `%LOCALAPPDATA%\LMBox5`                |
 
 Running from source uses the repo's own `data/` instead, so a checkout and an installed
 copy never argue over the same files.
@@ -115,6 +115,8 @@ copy never argue over the same files.
 ```bash
 git clone https://github.com/Momad-Y/LM-Box-5.git
 cd LM-Box-5
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
@@ -130,7 +132,7 @@ pip install -r requirements-build.txt
 python scripts/build_executable.py        # builds for whichever OS you are on
 ```
 
-PyInstaller does not cross-compile, but that only forces a separate *machine* for macOS:
+PyInstaller does not cross-compile, but that only forces a separate _machine_ for macOS:
 
 - **Windows from Linux** — `./scripts/build_windows_in_docker.sh` runs a real Windows
   Python under Wine in a container. Genuinely produces a `PE32+` executable.
@@ -176,18 +178,18 @@ calibrated to wherever you were sitting during the countdown.</td>
 
 ## Repositories
 
-| | |
-| --- | --- |
-| **This repo** | The current game — [`Momad-Y/LM-Box-5`](https://github.com/Momad-Y/LM-Box-5) |
+|               |                                                                                  |
+| ------------- | -------------------------------------------------------------------------------- |
+| **This repo** | The current game — [`Momad-Y/LM-Box-5`](https://github.com/Momad-Y/LM-Box-5)     |
 | **Beta repo** | Where it grew up — [`Samspei01/LM_BOX_5`](https://github.com/Samspei01/LM_BOX_5) |
 
 ## The two of us
 
-| | Mohamed Abdelnasser | Abdelrhman Saeed |
-| --- | --- | --- |
-| **Email** | [mohamed.y.abdelnasser@gmail.com](mailto:mohamed.y.abdelnasser@gmail.com) | [abdosaaed749@gmail.com](mailto:abdosaaed749@gmail.com) |
-| **GitHub** | [@Momad-Y](https://github.com/Momad-Y) | [@Samspei01](https://github.com/Samspei01) |
-| **LinkedIn** | [Profile](https://www.linkedin.com/in/mohamed-y-abdelnasser) | [Profile](https://www.linkedin.com/in/abdelrhman-saeed-elsayed-9b17b9238/) |
+|              | Mohamed Abdelnasser                                                       | Abdelrhman Saeed                                                           |
+| ------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **Email**    | [mohamed.y.abdelnasser@gmail.com](mailto:mohamed.y.abdelnasser@gmail.com) | [abdosaaed749@gmail.com](mailto:abdosaaed749@gmail.com)                    |
+| **GitHub**   | [@Momad-Y](https://github.com/Momad-Y)                                    | [@Samspei01](https://github.com/Samspei01)                                 |
+| **LinkedIn** | [Profile](https://www.linkedin.com/in/mohamed-y-abdelnasser)              | [Profile](https://www.linkedin.com/in/abdelrhman-saeed-elsayed-9b17b9238/) |
 
 Production: two guys and a GitHub repo.
 
