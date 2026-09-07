@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="./gui/resources/images/5-lmbox-icon.png" alt="LM Box 5" width="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./images/logo-inverted.png">
+    <img src="./gui/resources/images/5-lmbox-icon.png" alt="LM Box 5" width="200">
+  </picture>
 </p>
 
 <h1 align="center">LM Box 5</h1>
@@ -9,9 +12,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.0.2-FFC93C?style=flat-square&labelColor=2C0E5C" alt="version 1.0.2">
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-4FD8FF?style=flat-square&labelColor=2C0E5C" alt="platforms">
-  <img src="https://img.shields.io/badge/python-3.10%20–%203.12-4FD8FF?style=flat-square&labelColor=2C0E5C" alt="python">
-  <img src="https://img.shields.io/badge/tests-239%20passing-4FD8FF?style=flat-square&labelColor=2C0E5C" alt="tests">
-  <img src="https://img.shields.io/badge/GPU-not%20required-4FD8FF?style=flat-square&labelColor=2C0E5C" alt="no gpu">
   <img src="https://img.shields.io/badge/license-MIT-FFC93C?style=flat-square&labelColor=2C0E5C" alt="MIT">
 </p>
 
@@ -40,9 +40,9 @@ site, a blog, a docs page):
 <td width="33%"><img src="./images/ss-runner.png" alt="Runner"></td>
 </tr>
 <tr>
-<td><strong>🎈 Balloons</strong><br>Pop them before they drift off the top. Your fingertips are the pins.</td>
-<td><strong>🏓 Pong</strong><br>Two players, one webcam. Your hand's height is your paddle.</td>
-<td><strong>🏃 Runner</strong><br>Stand tall to jump, crouch to duck. You are the runner.</td>
+<td><strong>Balloons</strong><br>Pop them before they drift off the top. Your fingertips are the pins.</td>
+<td><strong>Pong</strong><br>Two players, one webcam. Your hand's height is your paddle.</td>
+<td><strong>Runner</strong><br>Stand tall to jump, crouch to duck. You are the runner.</td>
 </tr>
 </table>
 
@@ -66,23 +66,21 @@ site, a blog, a docs page):
 ## Download
 
 Grab a build from **[itch.io](https://momad-y.itch.io/lm-box-5)** or the
-**[releases page](https://github.com/Momad-Y/LM-Box-5/releases/latest)**. No Python, no
-installer, no account. Download, run, wave at your monitor.
+**[releases page](https://github.com/Momad-Y/LM-Box-5/releases/latest)**. No Python, no installer, no account.
 
 | Platform    | Notes                                                                                               |
 | ----------- | --------------------------------------------------------------------------------------------------- |
-| **Windows** | Run the `.exe`. SmartScreen may object — _More info_ → _Run anyway_. It is unsigned, not malicious. |
+| **Windows** | Run the `.exe`. SmartScreen may object: _More info_ → _Run anyway_. It is unsigned, not malicious. |
 | **macOS**   | Unzip, then **right-click → Open** the first time. Apple Silicon only.                              |
 | **Linux**   | `chmod +x` it and go. `./scripts/install_linux_desktop.sh` adds an icon and a launcher entry.       |
 
 ## Requirements
 
 **A webcam.** Non-negotiable. All three games are played with hand or body tracking and
-there is no keyboard fallback — we removed it deliberately. With no camera, the game will
-politely tell you so and then decline to do anything interesting.
+there is no keyboard fallback. That is deliberate. With no camera it will say so and stop there.
 
 Hand and pose tracking (MediaPipe) runs on the CPU every frame, so the CPU is what decides
-how smooth this feels. No GPU is required or used. We checked. Twice.
+how smooth this feels. No GPU is required or used.
 
 |             | Minimum                   | Recommended                          |
 | ----------- | ------------------------- | ------------------------------------ |
@@ -92,8 +90,8 @@ how smooth this feels. No GPU is required or used. We checked. Twice.
 | **Display** | Anything                  | 1920×1080                            |
 
 The games render at up to 60 FPS. How close you get depends almost entirely on MediaPipe
-inference speed, which is the single largest cost in every frame — a 2021 mobile i7
-measures **38–48 FPS** depending on the game.
+inference speed, the single largest cost in every frame. A 2021 mobile i7 measures
+**38-48 FPS** depending on the game.
 
 ## Your camera stays yours
 
@@ -121,8 +119,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Python **3.10–3.12** (3.11 is what CI uses). Older versions will not resolve the pinned
-dependencies, which is a polite way of saying it will not work.
+Python **3.10–3.12** (3.11 is what CI uses). Older versions cannot resolve the pinned dependencies.
 
 <details>
 <summary><strong>Building the executables yourself</strong></summary>
@@ -134,9 +131,9 @@ python scripts/build_executable.py        # builds for whichever OS you are on
 
 PyInstaller does not cross-compile, but that only forces a separate _machine_ for macOS:
 
-- **Windows from Linux** — `./scripts/build_windows_in_docker.sh` runs a real Windows
+- **Windows from Linux**: `./scripts/build_windows_in_docker.sh` runs a real Windows
   Python under Wine in a container. Genuinely produces a `PE32+` executable.
-- **macOS** — needs Apple hardware. The `macos-14` job in
+- **macOS**: needs Apple hardware. The `macos-14` job in
   [the release workflow](.github/workflows/build-executables.yml) rents one for free on
   every `v*` tag, which is cheaper than buying a Mac.
 
@@ -169,9 +166,9 @@ Two MediaPipe models do the heavy lifting.
 <td width="50%"><img src="./images/pose-landmarks.png" alt="Pose landmarks"></td>
 </tr>
 <tr>
-<td><strong>Hands</strong> — 21 3D landmarks per hand, which become fingertips in Balloons
+<td><strong>Hands</strong>: 21 3D landmarks per hand, which become fingertips in Balloons
 and paddle height in Pong.</td>
-<td><strong>Pose</strong> — 33 body landmarks, which become jumping and ducking in Runner,
+<td><strong>Pose</strong>: 33 body landmarks, which become jumping and ducking in Runner,
 calibrated to wherever you were sitting during the countdown.</td>
 </tr>
 </table>
@@ -180,8 +177,8 @@ calibrated to wherever you were sitting during the countdown.</td>
 
 |               |                                                                                  |
 | ------------- | -------------------------------------------------------------------------------- |
-| **This repo** | The current game — [`Momad-Y/LM-Box-5`](https://github.com/Momad-Y/LM-Box-5)     |
-| **Beta repo** | Where it grew up — [`Samspei01/LM_BOX_5`](https://github.com/Samspei01/LM_BOX_5) |
+| **This repo** | The current game. [`Momad-Y/LM-Box-5`](https://github.com/Momad-Y/LM-Box-5)     |
+| **Beta repo** | Where it grew up. [`Samspei01/LM_BOX_5`](https://github.com/Samspei01/LM_BOX_5) |
 
 ## The two of us
 
@@ -201,6 +198,6 @@ Art style: mostly rectangles. 3D models: none, we could not afford the polygons.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Do what you like with it.
+MIT, see [LICENSE](LICENSE). Do what you like with it.
 
 <p align="center"><sub>Totally not a dinosaur game anymore.</sub></p>

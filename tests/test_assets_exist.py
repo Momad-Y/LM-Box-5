@@ -107,7 +107,11 @@ def _readme_images():
     readme = (REPO_ROOT / "README.md").read_text()
     markdown = re.findall(r"!\[[^\]]*\]\((\./[^)\s]+)\)", readme)
     html = re.findall(r"""<img[^>]+src=["'](\./[^"']+)["']""", readme)
-    return [link.lstrip("./") for link in markdown + html]
+    # <picture><source srcset=...> serves the theme-specific logo, and is the
+    # only reference to it - miss this and the one image the header depends on
+    # is the one image nothing checks.
+    srcset = re.findall(r"""<source[^>]+srcset=["'](\./[^"']+)["']""", readme)
+    return [link.lstrip("./") for link in markdown + html + srcset]
 
 
 def test_the_readme_actually_shows_some_images():
