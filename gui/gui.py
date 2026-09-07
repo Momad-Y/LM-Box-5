@@ -36,6 +36,7 @@ from screeninfo import get_monitors
 from gui.utils import random_bool_by_chance, biased_random_int, resize_cover
 from gui.runner_sprites import Runner, Cactus, Ptero, Cloud, ground_line_offset
 from gui.camera_stream import ThreadedCapture
+from gui.audio import SilentSound, start_audio
 from gui.frame_clock import FrameClock
 from gui import ui_kit as ui
 from gui import (
@@ -188,7 +189,9 @@ class Game:
         pygame.init()
 
         # Initialize the mixer for sound
-        mixer.init()
+        # Sound is optional: a machine with no usable audio device gets a
+        # silent game rather than no game at all (see gui/audio.py).
+        self.audio_available = start_audio()
 
         # Set the icon
         icon = pygame.image.load(f"{CWD}/resources/images/5-lmbox-icon.png")
@@ -338,6 +341,17 @@ class Game:
         """Scale a sound effect's designed level by the sound volume setting."""
         return max(0.0, min(1.0, base_volume * self.sound_volume))
 
+    def load_sound(self, filename):
+        """A playable sound, or a silent stand-in when there is no device.
+
+        Returning an object either way is the point: the ~15 .play() and
+        .set_volume() calls scattered through the games need no guarding,
+        so none of them can be the one that was forgotten.
+        """
+        if not self.audio_available:
+            return SilentSound()
+        return mixer.Sound(f"{CWD}/resources/sounds/{filename}")
+
     def play_music(self, filename, restart=False):
         """Start a looping background track, skipping it if already playing.
 
@@ -358,6 +372,9 @@ class Game:
         Games pass restart=True: starting a round is a fresh start and
         should sound like one, including replaying the same game twice.
         """
+        if not self.audio_available:
+            return
+
         if self._current_music == filename and mixer.music.get_busy() and not restart:
             # Left playing, but the volume setting may have changed while it was
             mixer.music.set_volume(self.music_volume)
@@ -1602,23 +1619,19 @@ class Game:
         # built further down) needs to happen on every entry.
         if not hasattr(self, "balloon_popping_sounds"):
             self.balloon_popping_sounds = [
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-1.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-2.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-3.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-4.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-5.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-6.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-7.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-8.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-9.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/balloon-pop-10.ogg"),
+                self.load_sound("balloon-pop-1.ogg"),
+                self.load_sound("balloon-pop-2.ogg"),
+                self.load_sound("balloon-pop-3.ogg"),
+                self.load_sound("balloon-pop-4.ogg"),
+                self.load_sound("balloon-pop-5.ogg"),
+                self.load_sound("balloon-pop-6.ogg"),
+                self.load_sound("balloon-pop-7.ogg"),
+                self.load_sound("balloon-pop-8.ogg"),
+                self.load_sound("balloon-pop-9.ogg"),
+                self.load_sound("balloon-pop-10.ogg"),
             ]
-            self.balloon_game_over_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/balloon-game-over.ogg"
-            )
-            self.balloon_popping_fill_sounds = mixer.Sound(
-                f"{CWD}/resources/sounds/balloon-inflation.ogg"
-            )
+            self.balloon_game_over_sound = self.load_sound("balloon-game-over.ogg")
+            self.balloon_popping_fill_sounds = self.load_sound("balloon-inflation.ogg")
 
             # Initialize the background image for the Balloons game. Built
             # once ever into the surface actually drawn every frame -
@@ -2458,26 +2471,20 @@ class Game:
         if first_pong_entry:
             # Load hit sounds
             self.hit_sounds = [
-                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-1.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-2.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-3.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-4.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-5.ogg"),
-                mixer.Sound(f"{CWD}/resources/sounds/pong-ball-hit-6.ogg"),
+                self.load_sound("pong-ball-hit-1.ogg"),
+                self.load_sound("pong-ball-hit-2.ogg"),
+                self.load_sound("pong-ball-hit-3.ogg"),
+                self.load_sound("pong-ball-hit-4.ogg"),
+                self.load_sound("pong-ball-hit-5.ogg"),
+                self.load_sound("pong-ball-hit-6.ogg"),
             ]
 
             # Load whistle sound
-            self.point_whistle_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/pong-point-whistle.ogg"
-            )
-            self.pong_game_over_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/pong-game-over.ogg"
-            )
+            self.point_whistle_sound = self.load_sound("pong-point-whistle.ogg")
+            self.pong_game_over_sound = self.load_sound("pong-game-over.ogg")
 
             # Load game over sound
-            self.ball_drop_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/pong-ball-dropping.ogg"
-            )
+            self.ball_drop_sound = self.load_sound("pong-ball-dropping.ogg")
 
         # Volume always reflects the current setting, even though the Sound
         # objects above are only loaded from disk once - sfx_volume() is
@@ -2868,18 +2875,10 @@ class Game:
         # ball-drop, which belonged to a different game and outlasted the
         # countdown.
         if not hasattr(self, "runner_start_sound"):
-            self.runner_start_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/runner-start.ogg"
-            )
-            self.runner_jump_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/runner-jump.ogg"
-            )
-            self.runner_lose_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/runner-game-over.ogg"
-            )
-            self.runner_point_sound = mixer.Sound(
-                f"{CWD}/resources/sounds/runner-point.ogg"
-            )
+            self.runner_start_sound = self.load_sound("runner-start.ogg")
+            self.runner_jump_sound = self.load_sound("runner-jump.ogg")
+            self.runner_lose_sound = self.load_sound("runner-game-over.ogg")
+            self.runner_point_sound = self.load_sound("runner-point.ogg")
 
             # Initialize the background image for the Runner game. The raw
             # decoded array is a local variable, not kept on self - nothing

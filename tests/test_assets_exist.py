@@ -32,23 +32,39 @@ ASSET_REFERENCE = re.compile(
     r"""["']([^"']*resources/[^"']*\.(?:%s))["']""" % "|".join(ASSET_EXTENSIONS)
 )
 
+# Sounds are not named by path any more. load_sound() and play_music() take
+# a bare filename and join it to the sounds directory themselves, so the
+# full path never appears in the source for the pattern above to find.
+# Without this second pattern every sound in the game silently stopped
+# being checked - which is exactly what happened when load_sound() was
+# introduced, and what the "are any references found at all" test below
+# caught.
+SOUND_REFERENCE = re.compile(
+    r"""(?:load_sound|play_music)\(\s*["']([^"']+\.(?:%s))["']""" % "|".join(ASSET_EXTENSIONS)
+)
+SOUNDS_DIR = REPO_ROOT / "gui" / "resources" / "sounds"
+
 
 def _asset_references():
     """(path_on_disk, source_location) for every asset the source loads."""
     for source_dir in SOURCE_DIRS:
         for source_file in sorted((REPO_ROOT / source_dir).rglob("*.py")):
             text = source_file.read_text()
+
+            def where(match):
+                line = text[: match.start()].count("\n") + 1
+                return f"{source_file.relative_to(REPO_ROOT)}:{line}"
+
             for match in ASSET_REFERENCE.finditer(text):
                 reference = match.group(1)
                 # These are f-strings built on each module's own CWD, which
                 # every module defines as the directory it lives in.
                 resolved = reference.replace("{CWD}/", "")
-                line = text[: match.start()].count("\n") + 1
                 relative_to = source_file.parent if "{CWD}" in reference else REPO_ROOT
-                yield (
-                    (relative_to / resolved),
-                    f"{source_file.relative_to(REPO_ROOT)}:{line}",
-                )
+                yield ((relative_to / resolved), where(match))
+
+            for match in SOUND_REFERENCE.finditer(text):
+                yield ((SOUNDS_DIR / match.group(1)), where(match))
 
 
 def test_some_asset_references_are_actually_found():
